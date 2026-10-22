@@ -1,18 +1,32 @@
 
-const API_URL =
-  import.meta.env.VITE_API_URL ??
-  "http://localhost:5000";
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL?.trim() ||
+  "http://localhost:5003").replace(/\/+$/, "");
 
-export async function checkBackend() {
+export interface HealthResponse {
+  status: string;
+  application: string;
+  message: string;
+}
+
+export async function checkBackend(): Promise<HealthResponse> {
   const response = await fetch(
-    `${API_URL}/api/health`
+    `${API_BASE_URL}/api/health`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    }
   );
 
   if (!response.ok) {
     throw new Error(
-      "No fue posible conectar con el backend"
+      `Error de conexión: ${response.status}`
     );
   }
 
-  return response.json();
+  const data: HealthResponse = await response.json();
+
+  return data;
 }
