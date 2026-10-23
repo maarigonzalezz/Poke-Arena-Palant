@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace PokeArena.Api.Controllers;
 
+/// <summary>Endpoint de ejemplo de ASP.NET que devuelve pronósticos aleatorios.</summary>
 [ApiController]
 [Route("[controller]")]
 public class WeatherForecastController : ControllerBase

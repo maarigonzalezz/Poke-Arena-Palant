@@ -1,96 +1,89 @@
 
-import { useEffect, useState } from "react";
-import { checkBackend } from "./services/api";
+import { useState } from "react";
+import SearchCardPage from "./pages/SearchCardPage";
+import CreateCardPage from "./pages/CreateCardPage";
+import CreateLocationPage from "./pages/CreateLocationPage";
+import { IS_MOCK_MODE } from "./services/catalogApi";
+import { resetMockCatalog } from "./mocks/mockCatalogApi";
 import "./App.css";
 
-type ConnectionStatus =
-  | "loading"
-  | "connected"
-  | "error";
+type Page = "search" | "card" | "location";
 
-function App() {
-  const [status, setStatus] =
-    useState<ConnectionStatus>("loading");
+const pages: Record<Page, string> = {
+  search: "Buscar Carta",
+  card: "Crear Carta",
+  location: "Crear Ubicación",
+};
 
-  const [message, setMessage] = useState<string>(
-    "Comprobando conexión con el backend..."
-  );
+/** Organiza las pantallas del catálogo y los controles del modo simulado. */
+export default function App() {
+  const [page, setPage] = useState<Page>("search");
+  const [version, setVersion] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
 
-  useEffect(() => {
-    async function verifyConnection() {
-      try {
-        const response = await checkBackend();
-
-        setStatus("connected");
-        setMessage(response.message);
-      } catch (error) {
-        console.error("Error de conexión:", error);
-
-        setStatus("error");
-        setMessage(
-          "No se pudo establecer conexión con el backend."
-        );
-      }
-    }
-
-    void verifyConnection();
-  }, []);
+  // Espera las escrituras locales y remonta la pantalla para descartar su estado anterior.
+  async function resetSimulation() {
+    if (!window.confirm("¿Restablecer solo las cartas y ubicaciones simuladas de este navegador?")) return;
+    setResetting(true);
+    setResetError("");
+    try {
+      await resetMockCatalog();
+      setVersion(value => value + 1);
+      setPage("search");
+    } catch {
+      setResetError("No se pudieron restablecer los datos del navegador.");
+    } finally { setResetting(false); }
+  }
 
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <h1>Poké-Arena</h1>
-        <p>Sistema de cartas coleccionables</p>
-      </header>
+    <div className="admin-app">
+      <aside className="sidebar">
+        <div className="brand">
+          <strong>Poké-Arena</strong>
+          <span>Panel de Administración</span>
+        </div>
 
-      <main className="app-main">
-        <section className="status-card">
-          <h2>Estado del sistema</h2>
+        <nav aria-label="Administración del catálogo">
+          {(Object.entries(pages) as [Page, string][]).map(
+            ([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={page === key ? "nav-active" : ""}
+                onClick={() => setPage(key)}
+                aria-current={page === key ? "page" : undefined}
+              >
+                {label}
+              </button>
+            )
+          )}
+        </nav>
 
-          <div className={`connection-status ${status}`}>
-            {message}
+        <p className="sidebar-caption">
+          Sprint 1 · F-02 y F-03
+        </p>
+      </aside>
+
+      <main className="main-content">
+        {IS_MOCK_MODE && (
+          <div className="simulation-banner" role="status">
+            <strong>Modo simulación activo.</strong>{" "}
+            Los registros se guardan en este navegador.
+            No se están utilizando PostgreSQL ni MongoDB.
+            <div className="actions">
+              <button type="button" disabled={resetting} onClick={() => void resetSimulation()}>
+                {resetting ? "Restableciendo..." : "Restablecer datos simulados"}
+              </button>
+            </div>
+            {resetError && <p role="alert">{resetError}</p>}
           </div>
-        </section>
+        )}
 
-        <section className="features-card">
-          <h2>Funcionalidades del Sprint 1</h2>
-
-          <div className="features-grid">
-            <article className="feature">
-              <h3>Buscar Carta</h3>
-              <p>
-                Consultar cartas mediante filtros
-                de búsqueda combinados.
-              </p>
-              <span>F-02</span>
-            </article>
-
-            <article className="feature">
-              <h3>Crear Carta</h3>
-              <p>
-                Interfaz para registrar nuevas
-                cartas en el catálogo.
-              </p>
-              <span>F-02</span>
-            </article>
-
-            <article className="feature">
-              <h3>Crear Ubicación</h3>
-              <p>
-                Interfaz para configurar nuevas
-                ubicaciones de juego.
-              </p>
-              <span>F-03</span>
-            </article>
-          </div>
-        </section>
+        {page === "search" && <SearchCardPage key={version} />}
+        {page === "card" && <CreateCardPage key={version} />}
+        {page === "location" && <CreateLocationPage key={version} />}
       </main>
-
-      <footer className="app-footer">
-        Poké-Arena — Sprint 1
-      </footer>
     </div>
   );
 }
-
-export default App;

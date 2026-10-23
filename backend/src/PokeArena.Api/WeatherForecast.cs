@@ -1,5 +1,6 @@
 namespace PokeArena.Api;
 
+/// <summary>Modelo del ejemplo meteorológico de ASP.NET; no forma parte del catálogo.</summary>
 public class WeatherForecast
 {
     public DateOnly Date { get; set; }
