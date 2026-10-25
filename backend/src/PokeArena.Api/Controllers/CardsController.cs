@@ -12,11 +12,15 @@ namespace PokeArena.Api.Controllers;
 public sealed class CardsController : ControllerBase
 {
     private readonly ICardSearchRepository _repository;
+    private readonly ICardCreateRepository _create;
 
     public CardsController(
-        ICardSearchRepository repository)
+        ICardSearchRepository repository,
+        ICardCreateRepository create
+    )
     {
         _repository = repository;
+        _create = create;
     }
 
     /// <summary>Valida los filtros y consulta una sesión de búsqueda del usuario autenticado.</summary>
@@ -64,6 +68,66 @@ public sealed class CardsController : ControllerBase
             return NotFound(new
             {
                 type = "search_not_found",
+                message = ex.Message
+            });
+        }
+    }
+
+    /// <summary>Valida los filtros y consulta una sesión de creacion del usuario autenticado.</summary>
+    [HttpPost]
+    public async Task<IActionResult> Create (
+        [FromQuery] CardCreateQuery query,
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken
+    ) {
+        // Cargar imagen
+        CardFileImage image = await CardImageLoader.ReadAsync(file, cancellationToken);
+
+        // Validar query
+        var errors = CardCreateValidator.Validate(query, image);
+
+        if (errors.Count > 0)
+        {
+            return BadRequest(new
+            {
+                type = "invalid_create_criteria",
+                message = "Criterios de creacion inválidos.",
+                errors
+            });
+        }
+
+        // Validar usuario
+        var actorId = User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier
+        )?.Value;
+
+        if (string.IsNullOrWhiteSpace(actorId))
+        {
+            return Unauthorized(new
+            {
+                type = "authentication_required",
+                message = "No se pudo identificar al usuario."
+            });
+        }
+
+        // Crear la carta y almacenar su imagen original.
+        try
+        {
+            await using var imageContent = file.OpenReadStream();
+            var result = await _create.CreateAsync(
+                actorId,
+                query,
+                image,
+                imageContent,
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return BadRequest(new
+            {
+                type = "create_not_possible",
                 message = ex.Message
             });
         }
