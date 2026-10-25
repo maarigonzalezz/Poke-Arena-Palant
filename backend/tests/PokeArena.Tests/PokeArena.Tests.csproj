@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PokeArena.Application\PokeArena.Application.csproj" />
+    <ProjectReference Include="..\..\src\PokeArena.Infrastructure\PokeArena.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

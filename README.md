@@ -13,7 +13,7 @@ El desarrollo contempla tres funcionalidades administrativas: **Buscar Carta, Cr
 | Buscar Carta | Interfaz, filtros combinados y API implementados |
 | Paginación | Implementada mediante sesiones de búsqueda |
 | Crear Carta | Formulario y simulación implementados; backend pendiente |
-| Crear Ubicación | Formulario y simulación implementados; backend pendiente |
+| Crear Ubicación | Validación, endpoint y persistencia PostgreSQL implementados; imagen e idempotencia pendientes |
 | Catálogo de habilidades | Simulado; endpoint real pendiente |
 | Autenticación | API protegida mediante JWT; integración con frontend pendiente |
 | PostgreSQL | Esquema y consultas de búsqueda disponibles |
@@ -72,9 +72,9 @@ La búsqueda real requiere autenticación JWT con el rol `ContentAdmin`.
 | `GET /api/cards` | Buscar cartas mediante filtros |
 | `GET /api/abilities` | Consultar habilidades disponibles; pendiente |
 | `POST /api/cards` | Crear una carta; pendiente |
-| `POST /api/locations` | Crear una ubicación; pendiente |
+| `POST /api/locations` | Crear una ubicación (requiere rol `ContentAdmin`) |
 
-Los endpoints de creación reciben los datos mediante `FormData` y utilizan el encabezado `Idempotency-Key`.
+Los formularios de creación envían los datos mediante `FormData` y el encabezado `Idempotency-Key`. La persistencia de idempotencia aún está pendiente.
 
 ### Buscar Carta
 
@@ -97,13 +97,58 @@ Debe validar nombre, tipo, rareza, costo, poder, habilidad e imagen.
 
 ### Crear Ubicación
 
-Debe validar nombre, descripción, capacidad, energía, efecto e imagen.
+La creación de ubicaciones ya está conectada desde el formulario hasta PostgreSQL:
+
+1. El frontend valida los datos y, en modo simulado, requiere una imagen.
+2. En modo API, envía los campos de la ubicación como `multipart/form-data` a `POST /api/locations`.
+3. La API exige un JWT con el rol `ContentAdmin`, valida los campos y devuelve `400 Bad Request` cuando encuentra errores.
+4. El repositorio guarda la ubicación y su versión inicial dentro de una transacción. Si se crea correctamente, la API responde `201 Created`.
+
+El formulario real todavía no carga ni persiste la imagen. El encabezado `Idempotency-Key` se envía desde el frontend, pero el endpoint aún no implementa su procesamiento; un reintento puede crear otra ubicación.
 
 - Capacidad: 0 a 5 cartas.
 - Energía fija: 0 a 3.
 - Energía por carta: 0 a 2.
 - Efectos: bonificación por tipo, modificación de costo, restricción por turno o sin efecto.
-- Imagen 4:3, mínimo 800 × 600 y máximo 5 MB.
+- El nombre es obligatorio y admite hasta 120 caracteres; la descripción también es obligatoria.
+- Los tipos válidos para los parámetros de efecto son `Fuego`, `Agua`, `Planta`, `Eléctrico`, `Psíquico` y `Lucha`.
+- `TypeBonus` requiere `type` y `power` (entero entre −5 y 5). `CostModifier` requiere `amount` (entero entre −5 y 5) y admite `affectedType` válido o `null`. `TurnRestriction` requiere una lista no vacía de turnos únicos entre 1 y 6.
+- Los parámetros del efecto se reciben como un objeto JSON en el campo `effectParameters`.
+- El estado de imagen se inicializa en `Pending`; la imagen 4:3, mínimo 800 × 600 y máximo 5 MB aún no se almacena ni procesa.
+
+#### Campos enviados al crear una ubicación
+
+El formulario envía estos campos como `multipart/form-data`:
+
+| Campo | Tipo | Ejemplo |
+|---|---|---|
+| `name` | Texto | `Volcán` |
+| `description` | Texto | `Una ubicación volcánica.` |
+| `maxCards` | Entero | `4` |
+| `energyMode` | `Fixed` o `PerCard` | `Fixed` |
+| `extraEnergy` | Entero | `2` |
+| `effectType` | `None`, `TypeBonus`, `CostModifier` o `TurnRestriction` | `TypeBonus` |
+| `effectParameters` | Objeto JSON serializado como texto | `{"type":"Fuego","power":2}` |
+
+Ejemplos de `effectParameters` por tipo:
+
+```json
+{"type":"Fuego","power":2}
+{"amount":-1,"affectedType":null}
+{"turns":[1,3,5]}
+{}
+```
+
+Los ejemplos corresponden, en orden, a `TypeBonus`, `CostModifier`, `TurnRestriction` y `None`. La tabla `locations` almacena la configuración actual; `location_versions` conserva una instantánea JSON de la versión inicial (versión `1`). Las rutas de imagen quedan vacías hasta que se implemente el almacenamiento.
+
+#### Componentes añadidos
+
+- `CreateLocationRequest` define los campos aceptados por la API.
+- `LocationValidator` valida los campos generales y la estructura específica de cada efecto.
+- `LocationsController` expone `POST /api/locations`, aplica autorización y convierte errores de validación en una respuesta `400`.
+- `ILocationRepository` separa el contrato de persistencia de la aplicación; `PostgresLocationRepository` inserta la ubicación y su instantánea de versión en una única transacción.
+- `Location` representa la entidad persistida, incluyendo el estado de imagen, la versión vigente y si está activa.
+- `LocationValidatorTests` cubre entradas válidas, límites y parámetros de efecto inválidos.
 
 ## 5. Pruebas
 
@@ -141,9 +186,8 @@ Las pruebas de simulación no sustituyen las pruebas de integración con la API 
 ## 6. Trabajo pendiente
 
 1. Implementar `GET /api/abilities` y completar la autenticación administrativa.
-2. Desarrollar el backend de Crear Carta y Crear Ubicación.
-3. Implementar idempotencia persistente, procesamiento de imágenes y versionado.
+2. Desarrollar el backend de Crear Carta.
+3. Implementar idempotencia persistente, procesamiento de imágenes y versionado de cartas.
 4. Integrar MongoDB y la sincronización de datos.
 5. Completar las pruebas reales de autorización, consultas, concurrencia y persistencia.
 6. Verificar el funcionamiento con múltiples instancias de la API.
-

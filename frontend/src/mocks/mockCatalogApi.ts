@@ -452,7 +452,12 @@ async function createCard(
 
 /** Guarda una ubicación local con validación de energía, efectos e imagen. */
 export function mockCreateLocation(input: CreateLocationInput, idempotencyKey: string): Promise<unknown> {
-  return serialize(() => createLocation(input, idempotencyKey));
+  if (!input.image) {
+    throw new Error("Debe seleccionar una imagen válida.");
+  }
+
+  const location = { ...input, image: input.image };
+  return serialize(() => createLocation(location, idempotencyKey));
 }
 
 async function createLocation(
