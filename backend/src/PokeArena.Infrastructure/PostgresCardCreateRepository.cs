@@ -1,185 +1,93 @@
-
+using System.Text.Json;
 using Npgsql;
 using PokeArena.Application.Cards;
+using PokeArena.Application.Common;
 
 namespace PokeArena.Infrastructure.Cards;
 
-/// <summary>Crear nuevas entradas del repositorio.</summary>
-public sealed class PostgresCardCreateRepository
+/// <summary>Crea código, imágenes, carta y versión inicial sin duplicar reintentos.</summary>
+public sealed class PostgresCardCreateRepository(CatalogTransaction transactions, IImageStore images)
     : ICardCreateRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
-    private readonly string _cardsDirectory;
-
-    public PostgresCardCreateRepository(
-        NpgsqlDataSource dataSource,
-        string cardsDirectory)
+    public async Task<CardCreateResult> CreateAsync(string actorId, CardCreateQuery query, ImageUpload image,
+        string idempotencyKey, CancellationToken cancellationToken = default)
     {
-        _dataSource = dataSource;
-        _cardsDirectory = cardsDirectory;
-    }
-
-    public async Task<CardCreateResult> CreateAsync(
-        string actorId,
-        CardCreateQuery query,
-        CardFileImage image,
-        Stream imageContent,
-        CancellationToken cancellationToken = default
-    )
-    {
-        var extension = image.Format.ToUpperInvariant() switch
-        {
-            "JPG" or "JPEG" => ".jpg",
-            "PNG" => ".png",
-            "WEBP" => ".webp",
-            _ => throw new ArgumentException(
-                "Unsupported card image format.",
-                nameof(image))
-        };
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var physicalPath = Path.Combine(_cardsDirectory, fileName);
-        var imageUrl = $"/files/cards/{fileName}";
-        var imageSaved = false;
-
+        var errors = CardCreateValidator.Validate(query);
+        if (errors.Count > 0) throw new CatalogValidationException(errors);
+        query = query with { Name = query.Name.Trim(), AbilityCode = query.AbilityCode.Trim() };
+        StoredImage? stored = null;
         try
         {
-            Directory.CreateDirectory(_cardsDirectory);
-
-            await using (var destination = new FileStream(
-                physicalPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 81920,
-                useAsync: true))
+            return await transactions.RunAsync(actorId, idempotencyKey, "create-card",
+                CatalogTransaction.Fingerprint(query, image), async (connection, transaction) =>
             {
-                await imageContent.CopyToAsync(
-                    destination,
-                    cancellationToken);
-            }
-
-            await using var connection =
-                await _dataSource.OpenConnectionAsync(cancellationToken);
-            await using var transaction =
-                await connection.BeginTransactionAsync(cancellationToken);
-
-            const string sql = """
-                WITH created AS (
-                    INSERT INTO cards (
-                        code,
-                        name,
-                        cost,
-                        power,
-                        card_type,
-                        rarity,
-                        ability_code,
-                        current_version,
-                        image_status,
-                        image_original_path,
-                        image_small_path
-                    )
-                    VALUES (
-                        @code,
-                        @name,
-                        @cost,
-                        @power,
-                        @type,
-                        @rarity,
-                        @abilityCode,
-                        @version,
-                        'Ready',
-                        @imageOriginalPath,
-                        NULL
-                    )
-                    RETURNING
-                        id,
-                        code,
-                        name,
-                        cost,
-                        power,
-                        card_type,
-                        rarity,
-                        ability_code,
-                        image_status,
-                        image_original_path
-                )
-                SELECT
-                    c.id,
-                    c.code,
-                    c.name,
-                    c.cost,
-                    c.power,
-                    c.card_type,
-                    c.rarity,
-                    c.image_status,
-                    c.image_original_path,
-                    a.code,
-                    a.name,
-                    a.trigger_type,
-                    a.effect_type,
-                    a.parameters::text
-                FROM created c
-                INNER JOIN abilities a
-                    ON a.code = c.ability_code
-                """;
-
-            await using var command = new NpgsqlCommand(
-                sql,
-                connection,
-                transaction);
-            command.Parameters.AddWithValue("code", query.Code);
-            command.Parameters.AddWithValue("name", query.Name);
-            command.Parameters.AddWithValue("cost", query.Cost);
-            command.Parameters.AddWithValue("power", query.Power);
-            command.Parameters.AddWithValue("type", query.Type);
-            command.Parameters.AddWithValue("rarity", query.Rarity);
-            command.Parameters.AddWithValue("abilityCode", query.AbilityCode);
-            command.Parameters.AddWithValue("version", query.Version);
-            command.Parameters.AddWithValue("imageOriginalPath", imageUrl);
-
-            CardCreateItem item;
-            await using (var reader =
-                await command.ExecuteReaderAsync(cancellationToken))
-            {
-                if (!await reader.ReadAsync(cancellationToken))
+                string abilityName, parameters;
+                string? trigger, effect;
+                await using (var ability = new NpgsqlCommand("""
+                    SELECT name, trigger_type, effect_type, parameters::text, restricted_card_type
+                    FROM abilities WHERE code=@code AND active=TRUE FOR SHARE
+                    """, connection, transaction))
                 {
-                    throw new InvalidOperationException(
-                        "The card insert completed without returning the created card.");
+                    ability.Parameters.AddWithValue("code", query.AbilityCode);
+                    await using var reader = await ability.ExecuteReaderAsync(cancellationToken);
+                    if (!await reader.ReadAsync(cancellationToken))
+                        throw new CatalogValidationException(new() { ["abilityCode"] = "La habilidad no existe o está inactiva." });
+                    if (!reader.IsDBNull(4) && reader.GetString(4) != query.Type)
+                        throw new CatalogValidationException(new() { ["abilityCode"] = "La habilidad no corresponde al tipo de carta." });
+                    abilityName = reader.GetString(0);
+                    trigger = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    effect = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    parameters = reader.GetString(3);
                 }
 
-                item = new CardCreateItem(
-                    Id: reader.GetInt64(0),
-                    Code: reader.GetString(1),
-                    Name: reader.GetString(2),
-                    Cost: reader.GetInt32(3),
-                    Power: reader.GetInt32(4),
-                    Type: reader.GetString(5),
-                    Rarity: reader.GetString(6),
-                    ImageStatus: reader.GetString(7),
-                    ImageUrl: reader.IsDBNull(8) ? null : reader.GetString(8),
-                    AbilityCode: reader.GetString(9),
-                    AbilityName: reader.GetString(10),
-                    AbilityTrigger: reader.IsDBNull(11)
-                        ? null
-                        : reader.GetString(11),
-                    AbilityEffect: reader.IsDBNull(12)
-                        ? null
-                        : reader.GetString(12),
-                    AbilityParameters: reader.GetString(13)
-                );
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            imageSaved = true;
-
-            return new CardCreateResult(item);
+                // UPDATE bloquea el contador por tipo; la transacción evita códigos repetidos.
+                int number;
+                await using (var sequence = new NpgsqlCommand("""
+                    UPDATE card_code_sequences SET last_number=GREATEST(last_number,
+                        COALESCE((SELECT MAX(RIGHT(code,3)::integer) FROM cards
+                          WHERE card_type=@type AND code ~ '^PKA-(FUE|AGU|PLA|ELE|PSI|LUC)-[0-9]{3}$'),0))+1
+                    WHERE card_type=@type AND last_number < 999 RETURNING last_number
+                    """, connection, transaction))
+                {
+                    sequence.Parameters.AddWithValue("type", query.Type);
+                    var value = await sequence.ExecuteScalarAsync(cancellationToken);
+                    if (value is null) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+                    number = (int)value;
+                    if (number > 999) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+                }
+                var code = $"PKA-{CardCreateValidator.TypePrefixes[query.Type]}-{number:D3}";
+                stored = await images.SaveAsync(image, "cards", cancellationToken);
+                long id;
+                await using (var insert = new NpgsqlCommand("""
+                    INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code,
+                        image_status,image_original_path,image_small_path,current_version,active)
+                    VALUES (@code,@name,@cost,@power,@type,@rarity,@ability,'Ready',@original,@small,1,TRUE)
+                    RETURNING id
+                    """, connection, transaction))
+                {
+                    insert.Parameters.AddWithValue("code", code);
+                    insert.Parameters.AddWithValue("name", query.Name);
+                    insert.Parameters.AddWithValue("cost", query.Cost);
+                    insert.Parameters.AddWithValue("power", query.Power);
+                    insert.Parameters.AddWithValue("type", query.Type);
+                    insert.Parameters.AddWithValue("rarity", query.Rarity);
+                    insert.Parameters.AddWithValue("ability", query.AbilityCode);
+                    insert.Parameters.AddWithValue("original", stored.OriginalUrl);
+                    insert.Parameters.AddWithValue("small", stored.SmallUrl);
+                    id = (long)(await insert.ExecuteScalarAsync(cancellationToken))!;
+                }
+                var item = new CardCreateItem(id, code, query.Name, query.Cost, query.Power,
+                    query.Type, query.Rarity, "Ready", stored.OriginalUrl, query.AbilityCode,
+                    abilityName, trigger, effect, parameters, stored.SmallUrl);
+                await using var version = new NpgsqlCommand("""
+                    INSERT INTO card_versions(card_id,version,snapshot) VALUES (@id,1,@snapshot::jsonb)
+                    """, connection, transaction);
+                version.Parameters.AddWithValue("id", id);
+                version.Parameters.AddWithValue("snapshot", JsonSerializer.Serialize(item, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                await version.ExecuteNonQueryAsync(cancellationToken);
+                return new CardCreateResult(item);
+            }, cancellationToken);
         }
-        finally
-        {
-            if (!imageSaved && File.Exists(physicalPath))
-            {
-                File.Delete(physicalPath);
-            }
-        }
+        catch { if (stored is not null) images.Delete(stored); throw; }
     }
 }

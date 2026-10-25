@@ -144,7 +144,7 @@ export async function getAbilities(): Promise<Ability[]> {
   return request<Ability[]>("/api/abilities");
 }
 
-/** Envía datos e imagen con una clave de reintento; el POST real está pendiente. */
+/** Envía datos e imagen; conserva la clave para reintentar una misma operación. */
 export async function createCard(
   data: CreateCardInput,
   idempotencyKey: string
@@ -172,7 +172,7 @@ export async function createCard(
   });
 }
 
-/** Envía los datos de la ubicación; la imagen aún no se almacena en la API. */
+/** Envía la ubicación, sus efectos y la imagen original como formulario multipart. */
 export async function createLocation(
   data: CreateLocationInput,
   idempotencyKey: string
@@ -193,6 +193,7 @@ export async function createLocation(
     "effectParameters",
     JSON.stringify(data.effectParameters)
   );
+  form.append("image", data.image);
 
   return request("/api/locations", {
     method: "POST",

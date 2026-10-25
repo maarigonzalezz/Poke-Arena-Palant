@@ -17,6 +17,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/postgres/migrations/001_integrate_catalog.sql:/docker-entrypoint-initdb.d/zz_integrate_catalog.sql:ro
 
     healthcheck:
       test:

@@ -5,3 +5,12 @@
 
 *.user
 *.suo
+
+.env
+.env.*
+!.env.example
+!frontend/.env.development
+**/.env.local
+**/.env.*.local
+backend/files/
+**/TestResults/

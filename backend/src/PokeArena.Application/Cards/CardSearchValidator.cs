@@ -28,16 +28,22 @@ public static class CardSearchValidator
     {
         var errors = new Dictionary<string, string>();
 
+        foreach (var (field, value, limit) in new[] {
+            ("code", query.Code, 20), ("name", query.Name, 120),
+            ("abilityCode", query.AbilityCode, 20), ("abilityTrigger", query.AbilityTrigger, 50),
+            ("abilityEffect", query.AbilityEffect, 50) })
+            if (value?.Length > limit) errors[field] = $"Admite hasta {limit} caracteres.";
+
         if (query.PageSize < 1 || query.PageSize > 100)
         {
             errors["pageSize"] =
                 "Debe estar entre 1 y 100.";
         }
 
-        if (query.After < 0)
+        if (query.After < 0 || query.After > long.MaxValue - 100)
         {
             errors["after"] =
-                "No puede ser negativo.";
+                "La posición está fuera del rango permitido.";
         }
 
         if (query.SearchId is null && query.After != 0)

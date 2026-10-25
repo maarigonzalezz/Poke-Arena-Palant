@@ -1,26 +1,41 @@
 
 import { useState } from "react";
-import { setCatalogAccessToken } from "../services/catalogApi";
+import { getAbilities, setCatalogAccessToken } from "../services/catalogApi";
 
-/** Entrada manual de JWT para desarrollo; actualmente no está montada en App. */
-export default function DevelopmentAuth() {
+/** Conecta un JWT real durante desarrollo y recarga los catálogos al cambiar de sesión. */
+export default function DevelopmentAuth({ onChange }: { onChange: () => void }) {
   const [token, setToken] = useState("");
   const [connected, setConnected] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   if (!import.meta.env.DEV) return null;
 
-  function connect() {
-    if (!token.trim()) return;
-
+  async function connect() {
+    if (!token.trim() || loading) return;
+    setLoading(true);
+    setError("");
     setCatalogAccessToken(token.trim());
-    setConnected(true);
-    setToken("");
+    try {
+      await getAbilities();
+      setConnected(true);
+      setToken("");
+    } catch (cause) {
+      setCatalogAccessToken(null);
+      setConnected(false);
+      setError(cause instanceof Error ? cause.message : "No se pudo verificar la sesión.");
+    } finally {
+      setLoading(false);
+      onChange();
+    }
   }
 
   function disconnect() {
     setCatalogAccessToken(null);
     setConnected(false);
     setToken("");
+    setError("");
+    onChange();
   }
 
   return (
@@ -49,17 +64,19 @@ export default function DevelopmentAuth() {
       />
 
       <div className="actions">
-        <button type="button" onClick={connect}>
-          Conectar
+        <button type="button" disabled={loading || !token.trim()} onClick={() => void connect()}>
+          {loading ? "Verificando..." : "Conectar"}
         </button>
         <button
           type="button"
           className="button-secondary"
+          disabled={loading}
           onClick={disconnect}
         >
           Desconectar
         </button>
       </div>
+      {error && <p role="alert" className="alert error">{error}</p>}
     </div>
   );
 }

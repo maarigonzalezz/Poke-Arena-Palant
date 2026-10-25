@@ -142,7 +142,7 @@ export default function CreateLocationPage() {
       return "Seleccione al menos un turno restringido.";
     }
 
-    if (IS_MOCK_MODE && !image)
+    if (!image)
       return "Debe seleccionar una imagen válida.";
 
     return null;
@@ -159,7 +159,7 @@ export default function CreateLocationPage() {
       return;
     }
 
-    if (IS_MOCK_MODE && !image) return;
+    if (!image) return;
 
     const input: CreateLocationInput = {
       name: name.trim(),
@@ -169,7 +169,7 @@ export default function CreateLocationPage() {
       extraEnergy: Number(extraEnergy),
       effectType,
       effectParameters: effectParameters(),
-      image: image ?? undefined,
+      image,
     };
 
     setSaving(true);
@@ -185,7 +185,7 @@ export default function CreateLocationPage() {
       setSuccess(
         IS_MOCK_MODE
           ? "Ubicación guardada en la simulación de este navegador."
-          : `La configuración se guardó en la API. La imagen aún no se almacena. ${JSON.stringify(result)}`
+          : `Ubicación creada con sus imágenes. ${JSON.stringify(result)}`
       );
 
       keyRef.current = crypto.randomUUID();
@@ -395,8 +395,7 @@ export default function CreateLocationPage() {
         <h2>Imagen de la ubicación</h2>
         <p className="help-text">
           PNG, JPG o WebP, máximo 5 MB, proporción 4:3,
-          resolución mínima 800 × 600. En el backend real, el almacenamiento
-          de imágenes está pendiente.
+          resolución mínima 800 × 600.
         </p>
 
         <input
@@ -412,7 +411,7 @@ export default function CreateLocationPage() {
           <div className="image-preview location">
             <img src={preview} alt="Vista previa de ubicación" />
             <p>
-              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 320 × 240." : "La imagen solo se muestra como vista previa; el backend todavía no la almacena."}
+              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 320 × 240." : "Se conserva el original y se genera una miniatura de 320 × 240."}
             </p>
           </div>
         )}

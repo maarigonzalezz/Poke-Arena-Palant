@@ -2,6 +2,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using PokeArena.Api;
+using PokeArena.Application.Common;
+using PokeArena.Infrastructure;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Locations;
 using PokeArena.Infrastructure.Cards;
@@ -10,14 +13,14 @@ using PokeArena.Infrastructure.Locations;
 // Configura la API, el acceso desde React y los servicios de búsqueda autenticada.
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<CatalogExceptionFilter>());
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactFrontend", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"])
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -25,14 +28,9 @@ builder.Services.AddCors(options =>
 
 // Conexión PostgreSQL compartida mediante
 // un pool administrado por Npgsql.
-var connectionString =
-    builder.Configuration.GetConnectionString("Postgres")
-    ?? throw new InvalidOperationException(
-        "Falta ConnectionStrings:Postgres.");
-
-builder.Services.AddSingleton(
-    NpgsqlDataSource.Create(connectionString)
-);
+builder.Services.AddSingleton(services => NpgsqlDataSource.Create(
+    services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Postgres.")));
 
 // Inyección de dependencias.
 builder.Services.AddScoped<
@@ -40,12 +38,12 @@ builder.Services.AddScoped<
     PostgresCardSearchRepository
 >();
 
-var cardsDirectory = Path.GetFullPath(
-    Path.Combine(builder.Environment.ContentRootPath, "../../files/cards"));
-builder.Services.AddScoped<ICardCreateRepository>(services =>
-    new PostgresCardCreateRepository(
-        services.GetRequiredService<NpgsqlDataSource>(),
-        cardsDirectory));
+builder.Services.AddSingleton<IImageStore>(services => new CatalogImageStore(StorageRoot(
+    services.GetRequiredService<IConfiguration>(), services.GetRequiredService<IHostEnvironment>())));
+builder.Services.AddScoped<CatalogTransaction>();
+builder.Services.AddHostedService<SearchSessionCleanup>();
+builder.Services.AddScoped<ICardCreateRepository, PostgresCardCreateRepository>();
+builder.Services.AddScoped<IAbilityRepository, PostgresAbilityRepository>();
 builder.Services.AddScoped<
     ILocationRepository,
     PostgresLocationRepository
@@ -69,33 +67,45 @@ builder.Services
             options.Authority = authority;
         }
 
-        options.Audience = audience;
-
-        options.TokenValidationParameters =
-            new TokenValidationParameters
+        if (!string.IsNullOrWhiteSpace(audience)) options.Audience = audience;
+        // Conserva las claves de desarrollo que configura dotnet user-jwts.
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters.ValidateIssuer = true;
+        options.TokenValidationParameters.ValidateAudience = true;
+        options.TokenValidationParameters.ValidateLifetime = true;
+        options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+        options.TokenValidationParameters.RoleClaimType = "role";
+        options.TokenValidationParameters.NameClaimType = "sub";
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = context =>
             {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                RoleClaimType = "role",
-                NameClaimType = "sub"
-            };
+                context.HandleResponse();
+                context.Response.StatusCode = 401;
+                return context.Response.WriteAsJsonAsync(new { type="authentication_required", message="Debe iniciar sesión para continuar." });
+            },
+            OnForbidden = context =>
+            {
+                context.Response.StatusCode = 403;
+                return context.Response.WriteAsJsonAsync(new { type="admin_required", message="Se requiere el rol ContentAdmin." });
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-Directory.CreateDirectory(cardsDirectory);
+var filesDirectory = StorageRoot(app.Configuration, app.Environment);
+Directory.CreateDirectory(filesDirectory);
 
 app.UseCors("ReactFrontend");
 
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        cardsDirectory),
-    RequestPath = "/files/cards"
+        filesDirectory),
+    RequestPath = "/files"
 });
 
 app.UseAuthentication();
@@ -115,3 +125,9 @@ app.MapGet("/api/health", () =>
 });
 
 app.Run();
+
+static string StorageRoot(IConfiguration config, IHostEnvironment environment) =>
+    Path.GetFullPath(config["Storage:Root"] ?? Path.Combine(environment.ContentRootPath, "../../files"));
+
+// Punto de entrada accesible para pruebas HTTP con WebApplicationFactory.
+public partial class Program;

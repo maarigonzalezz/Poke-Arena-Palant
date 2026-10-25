@@ -15,7 +15,8 @@ public sealed record CardCreateItem(
     string AbilityName,
     string? AbilityTrigger,
     string? AbilityEffect,
-    string AbilityParameters
+    string AbilityParameters,
+    string ImageSmallUrl
 );
 
 /// <summary>Resultado de crear una carta.</summary>

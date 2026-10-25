@@ -5,6 +5,7 @@ import CreateCardPage from "./pages/CreateCardPage";
 import CreateLocationPage from "./pages/CreateLocationPage";
 import { IS_MOCK_MODE } from "./services/catalogApi";
 import { resetMockCatalog } from "./mocks/mockCatalogApi";
+import DevelopmentAuth from "./components/DevelopmentAuth";
 import "./App.css";
 
 type Page = "search" | "card" | "location";
@@ -66,6 +67,9 @@ export default function App() {
       </aside>
 
       <main className="main-content">
+        {!IS_MOCK_MODE && import.meta.env.DEV && (
+          <DevelopmentAuth onChange={() => setVersion(value => value + 1)} />
+        )}
         {IS_MOCK_MODE && (
           <div className="simulation-banner" role="status">
             <strong>Modo simulación activo.</strong>{" "}

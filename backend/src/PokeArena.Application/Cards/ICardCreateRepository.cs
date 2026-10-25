@@ -1,14 +1,9 @@
+using PokeArena.Application.Common;
 
 namespace PokeArena.Application.Cards;
 
-/// <summary>Contrato de persistencia para crear cartas.</summary>
 public interface ICardCreateRepository
 {
-    Task<CardCreateResult> CreateAsync(
-        string actorId,
-        CardCreateQuery query,
-        CardFileImage image,
-        Stream imageContent,
-        CancellationToken cancellationToken = default
-    );
+    Task<CardCreateResult> CreateAsync(string actorId, CardCreateQuery query, ImageUpload image,
+        string idempotencyKey, CancellationToken cancellationToken = default);
 }
