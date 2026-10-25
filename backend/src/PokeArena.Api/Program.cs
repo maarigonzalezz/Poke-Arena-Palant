@@ -38,6 +38,13 @@ builder.Services.AddScoped<
     PostgresCardSearchRepository
 >();
 
+var cardsDirectory = Path.GetFullPath(
+    Path.Combine(builder.Environment.ContentRootPath, "../../files/cards"));
+builder.Services.AddScoped<ICardCreateRepository>(services =>
+    new PostgresCardCreateRepository(
+        services.GetRequiredService<NpgsqlDataSource>(),
+        cardsDirectory));
+
 // Configuración de autenticación JWT.
 // Requiere un proveedor real configurado.
 var authority =
@@ -74,7 +81,16 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+Directory.CreateDirectory(cardsDirectory);
+
 app.UseCors("ReactFrontend");
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+        cardsDirectory),
+    RequestPath = "/files/cards"
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
