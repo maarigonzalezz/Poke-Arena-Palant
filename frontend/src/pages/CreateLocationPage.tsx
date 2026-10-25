@@ -142,7 +142,7 @@ export default function CreateLocationPage() {
       return "Seleccione al menos un turno restringido.";
     }
 
-    if (!image)
+    if (IS_MOCK_MODE && !image)
       return "Debe seleccionar una imagen válida.";
 
     return null;
@@ -159,7 +159,7 @@ export default function CreateLocationPage() {
       return;
     }
 
-    if (!image) return;
+    if (IS_MOCK_MODE && !image) return;
 
     const input: CreateLocationInput = {
       name: name.trim(),
@@ -169,7 +169,7 @@ export default function CreateLocationPage() {
       extraEnergy: Number(extraEnergy),
       effectType,
       effectParameters: effectParameters(),
-      image,
+      image: image ?? undefined,
     };
 
     setSaving(true);
@@ -185,7 +185,7 @@ export default function CreateLocationPage() {
       setSuccess(
         IS_MOCK_MODE
           ? "Ubicación guardada en la simulación de este navegador."
-          : `La API confirmó la creación de la ubicación. ${JSON.stringify(result)}`
+          : `La configuración se guardó en la API. La imagen aún no se almacena. ${JSON.stringify(result)}`
       );
 
       keyRef.current = crypto.randomUUID();
@@ -395,7 +395,8 @@ export default function CreateLocationPage() {
         <h2>Imagen de la ubicación</h2>
         <p className="help-text">
           PNG, JPG o WebP, máximo 5 MB, proporción 4:3,
-          resolución mínima 800 × 600.
+          resolución mínima 800 × 600. En el backend real, el almacenamiento
+          de imágenes está pendiente.
         </p>
 
         <input
@@ -411,7 +412,7 @@ export default function CreateLocationPage() {
           <div className="image-preview location">
             <img src={preview} alt="Vista previa de ubicación" />
             <p>
-              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 320 × 240." : "El backend generará la miniatura 320 × 240."}
+              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 320 × 240." : "La imagen solo se muestra como vista previa; el backend todavía no la almacena."}
             </p>
           </div>
         )}

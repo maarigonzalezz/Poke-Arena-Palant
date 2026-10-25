@@ -172,7 +172,7 @@ export async function createCard(
   });
 }
 
-/** Envía la ubicación y sus efectos; el POST real está pendiente. */
+/** Envía los datos de la ubicación; la imagen aún no se almacena en la API. */
 export async function createLocation(
   data: CreateLocationInput,
   idempotencyKey: string
@@ -193,7 +193,6 @@ export async function createLocation(
     "effectParameters",
     JSON.stringify(data.effectParameters)
   );
-  form.append("image", data.image);
 
   return request("/api/locations", {
     method: "POST",

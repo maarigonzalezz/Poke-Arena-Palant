@@ -102,5 +102,5 @@ export interface CreateLocationInput {
   extraEnergy: number;
   effectType: EffectType;
   effectParameters: Record<string, unknown>;
-  image: File;
+  image?: File;
 }

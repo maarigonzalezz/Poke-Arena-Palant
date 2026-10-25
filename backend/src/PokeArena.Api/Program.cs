@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using PokeArena.Application.Cards;
+using PokeArena.Application.Locations;
 using PokeArena.Infrastructure.Cards;
+using PokeArena.Infrastructure.Locations;
 
 // Configura la API, el acceso desde React y los servicios de búsqueda autenticada.
 var builder = WebApplication.CreateBuilder(args);
@@ -44,6 +46,10 @@ builder.Services.AddScoped<ICardCreateRepository>(services =>
     new PostgresCardCreateRepository(
         services.GetRequiredService<NpgsqlDataSource>(),
         cardsDirectory));
+builder.Services.AddScoped<
+    ILocationRepository,
+    PostgresLocationRepository
+>();
 
 // Configuración de autenticación JWT.
 // Requiere un proveedor real configurado.
