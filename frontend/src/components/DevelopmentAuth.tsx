@@ -39,42 +39,42 @@ export default function DevelopmentAuth({ onChange }: { onChange: () => void }) 
   }
 
   return (
-    <div className="panel">
-      <h2>Acceso administrativo de pruebas</h2>
-
-      <p>
-        {connected
-          ? "Token configurado. Ya puedes probar los endpoints protegidos."
-          : "Introduce el token JWT de desarrollo para consultar el catálogo."}
-      </p>
-
-      <input
-        type="password"
-        autoComplete="off"
-        placeholder="Token JWT de desarrollo"
-        aria-label="Token JWT"
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "12px",
-          border: "1px solid #cbd5e1",
-          borderRadius: "8px"
-        }}
-      />
-
-      <div className="actions">
-        <button type="button" disabled={loading || !token.trim()} onClick={() => void connect()}>
-          {loading ? "Verificando..." : "Conectar"}
-        </button>
-        <button
-          type="button"
-          className="button-secondary"
-          disabled={loading}
-          onClick={disconnect}
-        >
-          Desconectar
-        </button>
+    <div className={`panel auth-panel ${connected ? "is-connected" : ""}`}>
+      <div className="auth-description">
+        <h2>{connected ? "Sesión administrativa activa" : "Acceso administrativo"}</h2>
+        <p>
+          {connected
+            ? "Puedes consultar el catálogo y crear contenido."
+            : "Conecta tu token de desarrollo para administrar el catálogo."}
+        </p>
+      </div>
+      <div className="auth-controls">
+        {!connected && <>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Token JWT de desarrollo"
+            aria-label="Token JWT"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="token-input"
+          />
+          <div className="actions">
+            <button type="button" disabled={loading || !token.trim()} onClick={() => void connect()}>
+              {loading ? "Verificando..." : "Conectar"}
+            </button>
+          </div>
+        </>}
+        {connected && <div className="actions">
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={loading}
+            onClick={disconnect}
+          >
+            Desconectar
+          </button>
+        </div>}
       </div>
       {error && <p role="alert" className="alert error">{error}</p>}
     </div>

@@ -75,6 +75,28 @@ public sealed class CatalogApiTests(CatalogFixture fixture)
         Assert.Empty(empty["items"]!.AsArray());
     }
 
+    [IntegrationFact] public async Task Search_migration_repairs_existing_database_and_preserves_cards_and_sessions()
+    {
+        await fixture.Reset(); using var client=fixture.Client();
+        var created=(await Json(await Post(client,"/api/cards",Card(),CardImage),HttpStatusCode.Created))["item"]!;
+        // Solo el contenedor desechable: reproduce una base anterior a las tablas de búsqueda.
+        await fixture.Execute("DROP TABLE card_search_items; DROP TABLE card_search_sessions;");
+        var migration=await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/search_sessions.sql"));
+        try
+        {
+            await fixture.Execute(migration);
+            var found=await Json(await client.GetAsync("/api/cards?name=VOLCAN&type=Fuego&cost=2&power=4"));
+            Assert.Single(found["items"]!.AsArray());
+            Assert.Equal(created["code"]!.GetValue<string>(),found["items"]![0]!["code"]!.GetValue<string>());
+            await fixture.Execute(migration);
+            var page=await Json(await client.GetAsync("/api/cards?searchId="+found["searchId"]!.GetValue<string>()));
+            Assert.Single(page["items"]!.AsArray());
+            Assert.Equal(1,await fixture.Count("SELECT COUNT(*) FROM cards"));
+            Assert.Equal(1,await fixture.Count("SELECT COUNT(*) FROM card_versions"));
+        }
+        finally { await fixture.Execute(migration); }
+    }
+
     [IntegrationFact] public async Task Creation_is_idempotent_concurrent_and_scoped_to_user_and_operation()
     {
         await fixture.Reset(); using var client=fixture.Client();

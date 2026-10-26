@@ -28,6 +28,7 @@
   <ItemGroup>
     <None Include="../../../database/postgres/init.sql" Link="TestData/init.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../database/postgres/migrations/001_integrate_catalog.sql" Link="TestData/integrate.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/002_card_search_sessions.sql" Link="TestData/search_sessions.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,7 @@ import {
   type CardFilters,
 } from "../types/catalogs";
 import { API_BASE_URL } from "../services/api";
+import Icon from "../components/Icon";
 import {
   searchCards,
 } from "../services/catalogApi";
@@ -218,7 +219,7 @@ export default function SearchCardPage() {
         <div>
           <p className="eyebrow">Administración / Catálogo</p>
           <h1>Buscar carta</h1>
-          <p>Consulte y revise las cartas del juego.</p>
+          <p>Encuentra la próxima protagonista de la arena. Combina criterios para explorar tu catálogo.</p>
         </div>
       </header>
 
@@ -229,9 +230,12 @@ export default function SearchCardPage() {
           void search();
         }}
       >
-        <h2>Filtros de búsqueda</h2>
+        <div className="section-heading">
+          <h2>Filtros de búsqueda</h2>
+          <span>Todos los criterios se combinan</span>
+        </div>
 
-        <div className="form-grid">
+        <div className="form-grid search-basics">
           <label>
             Código
             <input
@@ -276,6 +280,10 @@ export default function SearchCardPage() {
             </select>
           </label>
 
+        </div>
+        <fieldset className="filter-group">
+          <legend>Costo <span>Exacto o rango · 0 a 10</span></legend>
+          <div className="form-grid">
           <label>
             Costo exacto
             <input
@@ -305,6 +313,11 @@ export default function SearchCardPage() {
             />
           </label>
 
+          </div>
+        </fieldset>
+        <fieldset className="filter-group">
+          <legend>Poder <span>Exacto o rango · −20 a 20</span></legend>
+          <div className="form-grid">
           <label>
             Poder exacto
             <input
@@ -334,6 +347,11 @@ export default function SearchCardPage() {
             />
           </label>
 
+          </div>
+        </fieldset>
+        <fieldset className="filter-group">
+          <legend>Habilidad <span>Opcional · HAB-000 para Sin Habilidad</span></legend>
+          <div className="form-grid">
           <label>
             Código de habilidad
             <input
@@ -360,12 +378,14 @@ export default function SearchCardPage() {
               placeholder="Código del efecto"
             />
           </label>
-        </div>
+          </div>
+        </fieldset>
 
         {error && <p className="alert error" role="alert">{error}</p>}
 
         <div className="actions">
           <button disabled={loading} type="submit">
+            <Icon name="search" />
             {loading ? "Consultando..." : "Buscar cartas"}
           </button>
           <button
@@ -379,7 +399,7 @@ export default function SearchCardPage() {
         </div>
       </form>
 
-      <section className="panel">
+      <section className="panel results-panel" aria-busy={loading}>
         <div className="section-heading">
           <h2>Resultados</h2>
           {searched && (
@@ -387,21 +407,24 @@ export default function SearchCardPage() {
           )}
         </div>
 
-        {searched && cards.length === 0 && (
-          <p className="empty-state">
-            No se encontraron cartas con esos criterios.
-          </p>
+        {cards.length === 0 && (
+          <div className="empty-state" role="status">
+            <span className="empty-icon"><Icon name="search" /></span>
+            <h3>{loading ? "Buscando en la arena…" : searched ? "No encontramos coincidencias" : "Tu catálogo, a un clic"}</h3>
+            <p>{loading ? "Estamos consultando las cartas." : searched ? "Prueba con otros criterios o limpia los filtros." : "Combina los filtros o busca sin criterios para ver todas las cartas."}</p>
+          </div>
         )}
 
         <div className="cards-grid">
           {cards.map((card) => (
-            <article className="catalog-card" key={card.code}>
+            <article className="catalog-card" key={card.code} data-type={card.type}>
               {card.imageUrl ? (
                 <img
                   src={card.imageUrl.startsWith("/")
                     ? `${API_BASE_URL}${card.imageUrl}`
                     : card.imageUrl}
                   alt={`Carta ${card.name}`}
+                  loading="lazy"
                 />
               ) : (
                 <div className="image-placeholder">
@@ -412,10 +435,11 @@ export default function SearchCardPage() {
               <div className="catalog-card-body">
                 <small>{card.code}</small>
                 <h3>{card.name}</h3>
-                <p><b>Tipo:</b> {card.type}</p>
-                <p><b>Rareza:</b> {card.rarity}</p>
-                <p><b>Costo:</b> {card.cost}</p>
-                <p><b>Poder:</b> {card.power}</p>
+                <div className="card-tags"><span className="type-tag">{card.type}</span><span>{card.rarity}</span></div>
+                <dl className="card-stats">
+                  <div><dt>Costo</dt><dd>{card.cost}</dd></div>
+                  <div><dt>Poder</dt><dd>{card.power}</dd></div>
+                </dl>
                 <p><b>Imagen:</b> {card.imageStatus}</p>
                 <p><b>Habilidad:</b> {card.abilityName}</p>
                 <p><b>Código:</b> {card.abilityCode}</p>

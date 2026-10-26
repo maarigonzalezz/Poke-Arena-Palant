@@ -6,6 +6,8 @@ import CreateLocationPage from "./pages/CreateLocationPage";
 import { IS_MOCK_MODE } from "./services/catalogApi";
 import { resetMockCatalog } from "./mocks/mockCatalogApi";
 import DevelopmentAuth from "./components/DevelopmentAuth";
+import Icon from "./components/Icon";
+import logo from "./assets/images (3).jpg";
 import "./App.css";
 
 type Page = "search" | "card" | "location";
@@ -39,12 +41,14 @@ export default function App() {
 
   return (
     <div className="admin-app">
+      <a className="skip-link" href="#main-content">Ir al contenido</a>
       <aside className="sidebar">
         <div className="brand">
-          <strong>Poké-Arena</strong>
-          <span>Panel de Administración</span>
+          <img className="brand-logo" src={logo} alt="Poké-Arena" width="335" height="320" />
+          <span>ESTUDIO DEL CATÁLOGO</span>
         </div>
 
+        <p className="nav-label">Administración</p>
         <nav aria-label="Administración del catálogo">
           {(Object.entries(pages) as [Page, string][]).map(
             ([key, label]) => (
@@ -55,18 +59,28 @@ export default function App() {
                 onClick={() => setPage(key)}
                 aria-current={page === key ? "page" : undefined}
               >
-                {label}
+                <Icon name={key} />
+                <span>{label}</span>
+                <span className="nav-arrow"><Icon name="arrow" /></span>
               </button>
             )
           )}
         </nav>
 
-        <p className="sidebar-caption">
-          Sprint 1 · F-02 y F-03
-        </p>
+        <div className="sidebar-caption">
+          <span className="arena-mark" aria-hidden="true" />
+          <strong>Tu próxima partida<br />empieza aquí.</strong>
+          <p>Da forma a las cartas y los escenarios de Poké-Arena.</p>
+        </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" id="main-content" tabIndex={-1}>
+        <div className="topbar">
+          <span>Poké-Arena <span className="breadcrumb-divider">/</span> <strong>{pages[page]}</strong></span>
+          <span className={`environment-badge ${IS_MOCK_MODE ? "is-simulation" : ""}`}>
+            <span aria-hidden="true" />{IS_MOCK_MODE ? "Simulación" : "Catálogo del juego"}
+          </span>
+        </div>
         {!IS_MOCK_MODE && import.meta.env.DEV && (
           <DevelopmentAuth onChange={() => setVersion(value => value + 1)} />
         )}

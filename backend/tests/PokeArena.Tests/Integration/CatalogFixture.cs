@@ -53,6 +53,7 @@ public sealed class CatalogFixture : IAsyncLifetime
             if (!ready) throw new InvalidOperationException("PostgreSQL de pruebas no inició.");
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/init.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/integrate.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/search_sessions.sql")));
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");
