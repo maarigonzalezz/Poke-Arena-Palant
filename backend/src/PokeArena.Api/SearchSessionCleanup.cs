@@ -7,6 +7,7 @@ public sealed class SearchSessionCleanup(NpgsqlDataSource dataSource, ILogger<Se
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // La limpieza periódica evita conservar indefinidamente resultados de búsquedas vencidas.
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
         try
         {

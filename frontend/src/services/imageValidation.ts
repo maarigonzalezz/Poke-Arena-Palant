@@ -36,16 +36,19 @@ export async function validateImage(
     throw new Error("El archivo está vacío.");
   }
 
+  // Crea una referencia temporal al archivo sin subirlo todavía.
   const url = URL.createObjectURL(file);
 
   try {
     const image = new Image();
     image.src = url;
+    // Espera la decodificación para leer las dimensiones reales.
     await image.decode();
 
     const width = image.naturalWidth;
     const height = image.naturalHeight;
 
+    // Cartas y ubicaciones tienen resoluciones y proporciones distintas.
     const minWidth = kind === "card" ? 600 : 800;
     const minHeight = kind === "card" ? 840 : 600;
 
@@ -60,8 +63,7 @@ export async function validateImage(
 
     const ratio = width / height;
 
-    // La tolerancia solo absorbe redondeos de píxeles,
-    // no admite imágenes de otra proporción.
+    // Tolera redondeos de píxeles, pero rechaza proporciones diferentes.
     if (Math.abs(ratio - expectedRatio) > 0.001) {
       throw new Error(
         kind === "card"
@@ -75,6 +77,7 @@ export async function validateImage(
       height,
       previewUrl: url,
     };
+  // Libera la referencia temporal cuando la imagen no supera la validación.
   } catch (error) {
     URL.revokeObjectURL(url);
     throw error;

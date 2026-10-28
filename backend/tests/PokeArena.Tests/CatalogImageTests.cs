@@ -4,6 +4,7 @@ using SkiaSharp;
 
 namespace PokeArena.Tests;
 
+// Comprueba originales, miniaturas y rechazo de imágenes inválidas en carpetas temporales.
 public sealed class CatalogImageTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "pokearena-images-" + Guid.NewGuid().ToString("N"));

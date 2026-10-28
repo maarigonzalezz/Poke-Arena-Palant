@@ -3,6 +3,7 @@ namespace PokeArena.Application.Cards;
 /// <summary>Valida datos de creación antes de consultar catálogos y guardar imágenes.</summary>
 public static class CardCreateValidator
 {
+    // Las abreviaturas forman la parte TIPO del código PKA-TIPO-NNN.
     public static readonly IReadOnlyDictionary<string, string> TypePrefixes = new Dictionary<string, string>
     {
         ["Fuego"] = "FUE", ["Agua"] = "AGU", ["Planta"] = "PLA",
@@ -19,6 +20,7 @@ public static class CardCreateValidator
         if (query.Type is null || !TypePrefixes.ContainsKey(query.Type)) errors["type"] = "Tipo no permitido.";
         if (query.Rarity is not ("Común" or "Poco común" or "Rara" or "Legendaria"))
             errors["rarity"] = "Rareza no permitida.";
+        // Aquí se valida el código; el repositorio comprueba existencia y compatibilidad.
         if (string.IsNullOrWhiteSpace(query.AbilityCode) || query.AbilityCode.Trim().Length > 20)
             errors["abilityCode"] = "Seleccione una habilidad válida.";
         return errors;

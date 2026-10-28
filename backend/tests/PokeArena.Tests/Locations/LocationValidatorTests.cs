@@ -2,14 +2,10 @@ using PokeArena.Application.Locations;
 
 namespace PokeArena.Tests.Locations;
 
-/// <summary>
-/// Verifica las reglas de validación para la creación de ubicaciones.
-/// </summary>
+/// <summary>Verifica las reglas de validación para la creación de ubicaciones.</summary>
 public sealed class LocationValidatorTests
 {
-    /// <summary>
-    /// Comprueba que una solicitud válida no genere errores.
-    /// </summary>
+    /// <summary>Comprueba que una solicitud válida no genere errores.</summary>
     [Fact]
     public void Validate_WithValidLocation_ReturnsNoErrors()
     {
@@ -27,9 +23,7 @@ public sealed class LocationValidatorTests
         Assert.Empty(LocationValidator.Validate(request));
     }
 
-    /// <summary>
-    /// Comprueba que los valores generales inválidos sean rechazados.
-    /// </summary>
+    /// <summary>Comprueba que los valores generales inválidos sean rechazados.</summary>
     [Theory]
     [InlineData(-1, "Fixed", 0, "None", "{}")]
     [InlineData(6, "Fixed", 0, "None", "{}")]
@@ -60,9 +54,7 @@ public sealed class LocationValidatorTests
         Assert.NotEmpty(LocationValidator.Validate(request));
     }
 
-    /// <summary>
-    /// Comprueba que el nombre y la descripción sean obligatorios.
-    /// </summary>
+    /// <summary>Comprueba que el nombre y la descripción sean obligatorios.</summary>
     [Fact]
     public void Validate_WithMissingNameAndDescription_ReturnsRequiredErrors()
     {
@@ -83,9 +75,7 @@ public sealed class LocationValidatorTests
         Assert.Contains("La descripción es obligatoria.", errors);
     }
 
-    /// <summary>
-    /// Comprueba que los parámetros de cada tipo de efecto respeten su contrato.
-    /// </summary>
+    /// <summary>Comprueba que los parámetros de cada tipo de efecto respeten su contrato.</summary>
     [Theory]
     [InlineData("TypeBonus", """{"type":"Otro","power":2}""")]
     [InlineData("TypeBonus", """{"type":"Fuego","power":6}""")]

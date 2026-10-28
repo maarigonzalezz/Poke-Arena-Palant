@@ -1,6 +1,6 @@
 ﻿namespace PokeArena.Application;
 
-// Clase vacía de la plantilla; la lógica de aplicación está en Cards.
+// Resto de la plantilla; las reglas reales están en Cards, Locations y Common.
 public class Class1
 {
 

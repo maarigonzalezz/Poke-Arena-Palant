@@ -4,6 +4,7 @@ using PokeArena.Application.Cards;
 
 namespace PokeArena.Api.Controllers;
 
+// Expone las habilidades activas que utiliza el formulario de creación de cartas.
 [ApiController]
 [Route("api/abilities")]
 [Authorize(Roles = "ContentAdmin")]

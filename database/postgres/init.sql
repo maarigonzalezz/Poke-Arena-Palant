@@ -1,10 +1,9 @@
 
 -- Esquema inicial: Docker lo ejecuta al crear un volumen PostgreSQL vacío.
+-- Permite buscar nombres ignorando tildes desde PostgreSQL.
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
--- ============================================
--- HABILIDADES
--- ============================================
+-- Catálogo de habilidades referenciado por cada carta.
 
 CREATE TABLE abilities (
     code VARCHAR(20) PRIMARY KEY,
@@ -16,6 +15,7 @@ CREATE TABLE abilities (
     active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- HAB-000 representa Sin Habilidad y evita referencias vacías en las cartas.
 INSERT INTO abilities (
     code,
     name,
@@ -32,9 +32,7 @@ VALUES (
 )
 ON CONFLICT (code) DO NOTHING;
 
--- ============================================
--- CONTADORES DE CÓDIGOS DE CARTAS
--- ============================================
+-- Un contador por tipo evita compartir consecutivos entre tipos distintos.
 
 CREATE TABLE card_code_sequences (
     card_type VARCHAR(20) PRIMARY KEY,
@@ -56,9 +54,7 @@ VALUES
     ('Lucha', 0)
 ON CONFLICT DO NOTHING;
 
--- ============================================
--- CARTAS
--- ============================================
+-- La base refuerza con restricciones las reglas de costo, poder, tipo y rareza.
 
 CREATE TABLE cards (
     id BIGINT GENERATED ALWAYS AS IDENTITY
@@ -142,9 +138,7 @@ CREATE TABLE card_versions (
     PRIMARY KEY (card_id, version)
 );
 
--- ============================================
--- UBICACIONES
--- ============================================
+-- Persiste capacidad, energía, efecto y rutas de las imágenes de cada ubicación.
 
 CREATE TABLE locations (
     id BIGINT GENERATED ALWAYS AS IDENTITY
@@ -211,6 +205,7 @@ CREATE TABLE locations (
         )
 );
 
+-- La clave compuesta distingue las versiones de una misma ubicación.
 CREATE TABLE location_versions (
     location_id BIGINT NOT NULL
         REFERENCES locations(id),
@@ -225,9 +220,7 @@ CREATE TABLE location_versions (
     PRIMARY KEY (location_id, version)
 );
 
--- ============================================
--- IDEMPOTENCIA
--- ============================================
+-- Identifica reintentos por administrador, operación y clave.
 
 -- Reserva claves por usuario y operación para registrar respuestas de reintentos.
 CREATE TABLE idempotency_requests (
@@ -248,6 +241,7 @@ CREATE TABLE idempotency_requests (
     created_at TIMESTAMPTZ NOT NULL
         DEFAULT NOW(),
 
+    -- La combinación única impide reservar dos veces el mismo reintento.
     CONSTRAINT uq_idempotency
         UNIQUE (
             actor_id,
@@ -264,9 +258,7 @@ CREATE TABLE idempotency_requests (
         )
 );
 
--- ============================================
--- OUTBOX TRANSACCIONAL
--- ============================================
+-- Reserva eventos pendientes para una futura integración con otros servicios.
 
 -- Almacena eventos pendientes; este esquema no implementa su procesamiento.
 CREATE TABLE outbox_events (
@@ -285,9 +277,7 @@ CREATE TABLE outbox_events (
     attempts INTEGER NOT NULL DEFAULT 0
 );
 
--- ============================================
--- ÍNDICES DE CONSULTAS
--- ============================================
+-- Los índices apoyan los filtros y el orden de consulta del catálogo.
 
 CREATE INDEX idx_cards_name
     ON cards (name);
@@ -315,9 +305,7 @@ CREATE INDEX idx_outbox_pending
     WHERE processed_at IS NULL;
 
 
--- ============================================
--- SESIONES DE BÚSQUEDA
--- ============================================
+-- Conserva resultados ordenados para paginar sin incorporar cartas recién creadas.
 
 CREATE TABLE card_search_sessions (
     id UUID PRIMARY KEY,
@@ -342,5 +330,6 @@ CREATE TABLE card_search_items (
     UNIQUE (session_id, card_id)
 );
 
+-- Acelera la identificación de sesiones vencidas durante la limpieza.
 CREATE INDEX idx_card_search_expiration
     ON card_search_sessions(expires_at);

@@ -14,6 +14,7 @@ using Npgsql;
 
 namespace PokeArena.Tests.Integration;
 
+// Las pruebas de integración se omiten salvo que el entorno las habilite expresamente.
 public sealed class IntegrationFactAttribute : FactAttribute
 {
     public IntegrationFactAttribute()
@@ -74,6 +75,7 @@ public sealed class CatalogFixture : IAsyncLifetime
         catch { await DisposeAsync(); throw; }
     }
 
+    // Firma tokens de prueba para comprobar usuarios anónimos, administradores y otros roles.
     public HttpClient Client(string? role="ContentAdmin", string actor="admin-tests")
     {
         var client=app!.CreateClient();
@@ -91,6 +93,7 @@ public sealed class CatalogFixture : IAsyncLifetime
     public async Task<long> Count(string sql)
     { await using var command=Database.CreateCommand(sql); return Convert.ToInt64(await command.ExecuteScalarAsync()); }
 
+    // Reinicia únicamente la base desechable para que cada caso tenga datos controlados.
     public async Task Reset()
     {
         await Execute("TRUNCATE cards, locations, card_search_sessions, idempotency_requests RESTART IDENTITY CASCADE; UPDATE card_code_sequences SET last_number=0;");

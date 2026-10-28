@@ -2,6 +2,7 @@ using PokeArena.Application.Cards;
 
 namespace PokeArena.Tests.Cards;
 
+// Comprueba límites y filtros inválidos sin conectar con bases de datos.
 public sealed class CardValidatorTests
 {
     private static CardCreateQuery Valid => new() { Name="Carta",Cost=0,Power=-20,Type="Fuego",Rarity="Común",AbilityCode="HAB-000" };

@@ -12,6 +12,7 @@ public sealed class PostgresLocationRepository(CatalogTransaction transactions, 
     public async Task<Location> CreateAsync(string actorId, CreateLocationRequest request, ImageUpload image,
         string idempotencyKey, CancellationToken cancellationToken)
     {
+        // Aplica las reglas de ubicación antes de abrir la operación de guardado.
         var errors = LocationValidator.Validate(request);
         if (errors.Count > 0) throw new CatalogValidationException(new() { ["location"] = string.Join(" ", errors) });
         StoredImage? stored = null;
@@ -20,6 +21,7 @@ public sealed class PostgresLocationRepository(CatalogTransaction transactions, 
             return await transactions.RunAsync(actorId, idempotencyKey, "create-location",
                 CatalogTransaction.Fingerprint(request, image), async (connection, transaction) =>
             {
+                // La ubicación solo se publica después de guardar el original y la miniatura.
                 stored = await images.SaveAsync(image, "locations", cancellationToken);
                 await using var insert = new NpgsqlCommand("""
                     INSERT INTO locations(name,description,max_cards,energy_mode,extra_energy,effect_type,
@@ -33,10 +35,12 @@ public sealed class PostgresLocationRepository(CatalogTransaction transactions, 
                 insert.Parameters.AddWithValue("mode", request.EnergyMode);
                 insert.Parameters.AddWithValue("energy", request.ExtraEnergy);
                 insert.Parameters.AddWithValue("effect", request.EffectType);
+                // El JSON del efecto se guarda como JSONB mediante un parámetro SQL.
                 insert.Parameters.AddWithValue("parameters", request.EffectParameters);
                 insert.Parameters.AddWithValue("original", stored.OriginalUrl);
                 insert.Parameters.AddWithValue("small", stored.SmallUrl);
                 var id = (long)(await insert.ExecuteScalarAsync(cancellationToken))!;
+                // Construye la entidad devuelta al frontend con identidad y rutas definitivas.
                 var created = new Location
                 {
                     Id=id, Name=request.Name.Trim(), Description=request.Description.Trim(),
@@ -45,6 +49,7 @@ public sealed class PostgresLocationRepository(CatalogTransaction transactions, 
                     ImageStatus="Ready", ImageOriginalPath=stored.OriginalUrl, ImageSmallPath=stored.SmallUrl,
                     CurrentVersion=1, Active=true
                 };
+                // Guarda la versión inicial junto al registro para mantener su historial.
                 await using var version = new NpgsqlCommand("""
                     INSERT INTO location_versions(location_id,version,snapshot) VALUES (@id,1,@snapshot::jsonb)
                     """, connection, transaction);
@@ -54,6 +59,7 @@ public sealed class PostgresLocationRepository(CatalogTransaction transactions, 
                 return created;
             }, cancellationToken);
         }
+        // Si falla la persistencia, intenta eliminar las imágenes de esta operación.
         catch { if (stored is not null) images.Delete(stored); throw; }
     }
 }

@@ -36,6 +36,7 @@ public sealed class PostgresCardSearchRepository
             );
         }
 
+        // Una continuación reutiliza los identificadores guardados en la búsqueda original.
         if (query.SearchId.HasValue)
         {
             return await ReadPageAsync(
@@ -56,6 +57,7 @@ public sealed class PostgresCardSearchRepository
             await connection.BeginTransactionAsync(
                 cancellationToken);
 
+        // Registra propietario y vencimiento antes de fijar los resultados.
         const string createSessionSql = """
             INSERT INTO card_search_sessions (
                 id,
@@ -103,6 +105,7 @@ public sealed class PostgresCardSearchRepository
             new("sessionId", searchId)
         };
 
+        // Cada filtro agrega una condición AND y su valor parametrizado.
         AddFilter(sql, parameters,
             query.Code, "c.code", "code");
 
@@ -155,6 +158,7 @@ public sealed class PostgresCardSearchRepository
                 cancellationToken);
         }
 
+        // Guarda el total de la sesión para indicar cuántos resultados faltan.
         const string updateCountSql = """
             UPDATE card_search_sessions
             SET result_count = (
@@ -176,6 +180,7 @@ public sealed class PostgresCardSearchRepository
                 cancellationToken);
         }
 
+        // Confirma sesión y resultados juntos antes de leer la primera página.
         await transaction.CommitAsync(cancellationToken);
 
         return await ReadPageAsync(
@@ -198,6 +203,7 @@ public sealed class PostgresCardSearchRepository
             await _dataSource.OpenConnectionAsync(
                 cancellationToken);
 
+        // Lee solo el tramo solicitado y verifica que pertenezca al administrador.
         const string sql = """
             SELECT
                 s.result_count,
@@ -251,11 +257,13 @@ public sealed class PostgresCardSearchRepository
             foundSession = true;
             totalCount = reader.GetInt64(0);
 
+            // Una sesión sin coincidencias existe, pero no contiene filas de cartas.
             if (reader.IsDBNull(1))
                 continue;
 
             lastPosition = reader.GetInt64(1);
 
+            // Transforma cada fila SQL al contrato JSON utilizado por el frontend.
             items.Add(new CardSearchItem(
                 Code: reader.GetString(2),
                 Name: reader.GetString(3),
@@ -285,6 +293,7 @@ public sealed class PostgresCardSearchRepository
                 "La búsqueda no existe o ha expirado.");
         }
 
+        // Un cursor nulo indica que la sesión ya entregó todos sus resultados.
         long? nextPosition =
             lastPosition < totalCount
                 ? lastPosition
@@ -315,6 +324,7 @@ public sealed class PostgresCardSearchRepository
             value.Trim()));
     }
 
+    // unaccent elimina tildes e ILIKE ignora mayúsculas en la coincidencia parcial.
     private static void AddNameFilter(
         StringBuilder sql,
         List<NpgsqlParameter> parameters,
@@ -323,8 +333,7 @@ public sealed class PostgresCardSearchRepository
         if (string.IsNullOrWhiteSpace(name))
             return;
 
-        // Escapa los comodines de LIKE para que el
-        // nombre ingresado se interprete literalmente.
+        // Escapa comodines para buscar el nombre literal sin alterar el patrón SQL.
         var normalized = name.Trim()
             .Replace("\\", "\\\\")
             .Replace("%", "\\%")

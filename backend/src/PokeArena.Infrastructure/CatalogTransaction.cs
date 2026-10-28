@@ -10,6 +10,7 @@ public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    // La huella incluye los datos y los bytes de imagen para detectar cambios en un reintento.
     public static string Fingerprint<T>(T data, ImageUpload image) =>
         Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         { data, imageHash = Convert.ToHexString(SHA256.HashData(image.Content)) }, Json)));
@@ -17,6 +18,7 @@ public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
     public async Task<T> RunAsync<T>(string actor, string key, string operation, string hash,
         Func<NpgsqlConnection, NpgsqlTransaction, Task<T>> create, CancellationToken cancellationToken)
     {
+        // Exige una clave válida para reconocer posibles reintentos.
         if (string.IsNullOrWhiteSpace(key) || key.Length > 100)
             throw new CatalogValidationException(new() { ["idempotencyKey"] = "Idempotency-Key es obligatorio y admite hasta 100 caracteres." });
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -32,6 +34,7 @@ public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
             await reserve.ExecuteNonQueryAsync(cancellationToken);
         }
         T result;
+        // La clave se identifica por usuario y operación para no mezclar solicitudes distintas.
         await using (var read = new NpgsqlCommand("""
             SELECT request_hash, response_body::text FROM idempotency_requests
             WHERE actor_id=@actor AND operation=@operation AND idempotency_key=@key FOR UPDATE
@@ -42,8 +45,10 @@ public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
             await reader.ReadAsync(cancellationToken);
             if (reader.GetString(0) != hash)
                 throw new CatalogConflictException("La clave de idempotencia ya fue utilizada con otros datos.");
+            // Una respuesta existente evita volver a ejecutar la creación.
             if (!reader.IsDBNull(1)) return JsonSerializer.Deserialize<T>(reader.GetString(1), Json)!;
         }
+        // Ejecuta el guardado específico de carta o ubicación dentro de esta transacción.
         result = await create(connection, transaction);
         await using (var finish = new NpgsqlCommand("""
             UPDATE idempotency_requests SET status='Completed', response_status=201, response_body=@response::jsonb
@@ -54,10 +59,12 @@ public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
             finish.Parameters.AddWithValue("response", JsonSerializer.Serialize(result, Json));
             await finish.ExecuteNonQueryAsync(cancellationToken);
         }
+        // Confirma el registro y la respuesta de reintento dentro de la misma transacción SQL.
         await transaction.CommitAsync(cancellationToken);
         return result;
     }
 
+    // Reutiliza los parámetros que identifican la solicitud sin concatenar valores en SQL.
     private static void Bind(NpgsqlCommand command, string actor, string key, string operation)
     {
         command.Parameters.AddWithValue("actor", actor);

@@ -17,6 +17,7 @@ import {
   validateImage,
 } from "../services/imageValidation";
 
+// HAB-000 representa Sin Habilidad dentro del mismo catálogo de habilidades.
 const NO_ABILITY: Ability = {
   code: "HAB-000",
   name: "Sin Habilidad",
@@ -37,6 +38,7 @@ export default function CreateCardPage() {
   const [abilities, setAbilities] = useState<Ability[]>([NO_ABILITY]);
   const [abilitiesError, setAbilitiesError] = useState("");
   const [loadingAbilities, setLoadingAbilities] = useState(true);
+  // El archivo se envía al backend; preview solo sirve para mostrarlo en pantalla.
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [imageInfo, setImageInfo] = useState("");
@@ -69,10 +71,12 @@ export default function CreateCardPage() {
     return () => { active = false; };
   }, []);
 
+  // Localiza la habilidad elegida para comprobar su compatibilidad.
   const selectedAbility = abilities.find(
     (a) => a.code === abilityCode
   );
 
+  // Libera la URL temporal de la imagen al cambiarla o abandonar la pantalla.
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   function changed() {
@@ -82,6 +86,7 @@ export default function CreateCardPage() {
     keyRef.current = crypto.randomUUID();
   }
 
+  // Valida la nueva imagen antes de habilitar su previsualización.
   async function chooseImage(file?: File) {
     if (preview) URL.revokeObjectURL(preview);
     setImage(null);
@@ -105,8 +110,10 @@ export default function CreateCardPage() {
     }
   }
 
+  // La validación local orienta al usuario; la API vuelve a validar antes de persistir.
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Evita envíos repetidos o anteriores a la carga del catálogo de habilidades.
     if (saving || loadingAbilities) return;
     setError("");
     setSuccess("");
@@ -146,6 +153,7 @@ export default function CreateCardPage() {
       return;
     }
 
+    // Construye la solicitud con datos editables; el código lo asigna el servidor.
     const payload: CreateCardInput = {
       name: name.trim(),
       cost: cardCost,
@@ -164,6 +172,7 @@ export default function CreateCardPage() {
         keyRef.current
       );
 
+      // El mensaje de éxito depende de la respuesta del servicio activo.
       setSuccess(
         IS_MOCK_MODE
           ? "Carta guardada en la simulación. Ya puede encontrarla en Buscar Carta."
@@ -191,6 +200,7 @@ export default function CreateCardPage() {
       </header>
 
       <form className="panel" onSubmit={(e) => void submit(e)}>
+        {/* Los campos controlados mantienen el formulario sincronizado con el estado. */}
         <h2>Información de la carta</h2>
 
         <div className="form-grid">
@@ -340,6 +350,7 @@ export default function CreateCardPage() {
           </div>
         )}
 
+        {/* Presenta el resultado del envío sin abandonar el formulario. */}
         {error && <p className="alert error" role="alert">{error}</p>}
         {success && <p className="alert success" role="status">{success}</p>}
 

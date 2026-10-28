@@ -19,6 +19,7 @@ export default function CreateLocationPage() {
   const [extraEnergy, setExtraEnergy] = useState("0");
   const [effectType, setEffectType] = useState<EffectType>("None");
 
+  // Estos estados contienen únicamente los parámetros de los efectos configurables.
   const [affectedType, setAffectedType] =
     useState<CardType>("Fuego");
   const [amount, setAmount] = useState("0");
@@ -43,6 +44,7 @@ export default function CreateLocationPage() {
     setSuccess("");
   }
 
+  // Activa o desactiva un turno y mantiene la selección ordenada.
   function toggleTurn(turn: number) {
     changed();
     setRestrictedTurns((previous) =>
@@ -97,6 +99,7 @@ export default function CreateLocationPage() {
     }
   }
 
+  // La modalidad de energía y el efecto determinan qué campos y rangos son válidos.
   function validate(): string | null {
     if (!name.trim())
       return "El nombre es obligatorio.";
@@ -109,6 +112,7 @@ export default function CreateLocationPage() {
       return "El límite de cartas debe ser de 0 a 5.";
 
     const energy = Number(extraEnergy);
+    // La energía máxima cambia según la modalidad seleccionada.
     const energyMax = energyMode === "Fixed" ? 3 : 2;
 
     if (
@@ -148,6 +152,7 @@ export default function CreateLocationPage() {
     return null;
   }
 
+  // Envía la imagen y la configuración mediante catalogApi; el servidor asigna la identidad.
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (saving) return;
@@ -161,6 +166,7 @@ export default function CreateLocationPage() {
 
     if (!image) return;
 
+    // Reúne la configuración y la imagen en el contrato de creación.
     const input: CreateLocationInput = {
       name: name.trim(),
       description: description.trim(),
@@ -172,6 +178,7 @@ export default function CreateLocationPage() {
       image,
     };
 
+    // Bloquea nuevos envíos mientras se espera la respuesta.
     setSaving(true);
     setError("");
     setSuccess("");
@@ -255,6 +262,7 @@ export default function CreateLocationPage() {
           </label>
         </div>
 
+        {/* La modalidad define cómo se interpretará la cantidad de energía. */}
         <h2>Energía adicional</h2>
 
         <div className="form-grid">
@@ -294,6 +302,7 @@ export default function CreateLocationPage() {
             : "Cada jugador recibe esa energía por cada carta propia en esta ubicación al inicio del turno."}
         </p>
 
+        {/* El selector muestra los campos que necesita cada tipo de efecto. */}
         <h2>Efecto de la ubicación</h2>
 
         <label>
@@ -374,6 +383,7 @@ export default function CreateLocationPage() {
           </div>
         )}
 
+        {/* La selección de turnos se transforma en el arreglo turns del JSON. */}
         {effectType === "TurnRestriction" && (
           <fieldset className="nested">
             <legend>Turnos donde no se pueden jugar cartas</legend>

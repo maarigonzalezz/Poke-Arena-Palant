@@ -50,6 +50,7 @@ let pendingWrites: Promise<unknown> = Promise.resolve();
 // Ordena las escrituras de esta instancia para evitar duplicados en envíos simultáneos.
 function serialize<T>(operation: () => Promise<T>): Promise<T> {
   const result = pendingWrites.then(operation);
+  // Un guardado fallido no debe impedir que la cola procese los siguientes.
   pendingWrites = result.catch(() => undefined);
   return result;
 }
@@ -85,6 +86,7 @@ function writeCards(cards: Card[]) {
   }
 }
 
+// Comprueba la estructura mínima antes de usar datos recuperados del navegador.
 function isStoredCard(value: unknown): value is Card {
   if (!value || typeof value !== "object") return false;
   const card = value as Record<string, unknown>;
@@ -101,6 +103,7 @@ function normalize(value: string): string {
     .toLocaleLowerCase("es");
 }
 
+// Una sola condición incumplida excluye la carta: los filtros se combinan con AND.
 function matches(card: Card, filters: CardFilters): boolean {
   if (filters.code && card.code !== filters.code.trim())
     return false;
@@ -185,6 +188,7 @@ function validateSearch(filters: CardFilters) {
     throw new Error("Tipo no permitido.");
   if (filters.rarity !== undefined && !RARITIES.includes(filters.rarity))
     throw new Error("Rareza no permitida.");
+  // Limita la página simulada igual que el contrato de búsqueda real.
   const pageSize = filters.pageSize ?? 20;
 
   if (
@@ -252,6 +256,7 @@ export async function mockSearchCards(
 ): Promise<CardSearchResult> {
   await delay();
   validateSearch(filters);
+  // Retira sesiones vencidas antes de crear o continuar una búsqueda.
   for (const [id, session] of sessions) {
     if (Date.now() - session.createdAt >= SEARCH_EXPIRATION) sessions.delete(id);
   }
@@ -288,6 +293,7 @@ export async function mockSearchCards(
 
     session = {
       codes: filtered.map((card) => card.code),
+      // Congela los resultados para que nuevas cartas no alteren esta paginación.
       snapshot: structuredClone(filtered),
       createdAt: Date.now(),
     };
@@ -295,6 +301,7 @@ export async function mockSearchCards(
     sessions.set(searchId, session);
   }
 
+  // Recorta la página a partir del cursor solicitado.
   const page = session.snapshot.slice(after, after + pageSize);
   const next =
     after + page.length < session.codes.length
@@ -367,6 +374,7 @@ async function createCard(
     fingerprint
   );
 
+  // Reutiliza la respuesta guardada sin crear otro registro.
   if (replay !== undefined) return replay;
 
   const ability = MOCK_ABILITIES.find(
@@ -408,6 +416,7 @@ async function createCard(
 
   const prefix = `PKA-${prefixes[input.type]}-`;
 
+  // Calcula el consecutivo local solo entre cartas del mismo tipo.
   const nextNumber = Math.max(
     0,
     ...cards
@@ -434,6 +443,7 @@ async function createCard(
     imageUrl: await createMockThumbnail(input.image, "card"),
   };
 
+  // Persiste la nueva carta simulada antes de registrar la respuesta del reintento.
   writeCards([...cards, card]);
 
   const response = {
@@ -500,6 +510,7 @@ async function createLocation(
     throw new Error("Límite de cartas inválido.");
   }
 
+  // Replica el límite de energía definido por las reglas del backend.
   const maximum = input.energyMode === "Fixed" ? 3 : 2;
 
   if (
@@ -523,6 +534,7 @@ async function createLocation(
     }
   }
 
+  // Asigna un identificador local independiente de PostgreSQL.
   const id = Math.max(0, ...locations.map((l) => l.id)) + 1;
 
   const location: MockLocation = {
@@ -570,10 +582,12 @@ async function fileHash(file: File): Promise<string> {
   if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
       file.size === 0 || file.size > 5 * 1024 * 1024)
     throw new Error("Seleccione una imagen PNG, JPG o WebP válida de hasta 5 MB.");
+  // Compara bytes del archivo para distinguir imágenes con igual nombre y tamaño.
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
+// Revisa los parámetros que corresponden al efecto seleccionado.
 function validateEffect(input: CreateLocationInput) {
   const params = input.effectParameters;
   if (input.effectType === "TypeBonus" || input.effectType === "CostModifier") {

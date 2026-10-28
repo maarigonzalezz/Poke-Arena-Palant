@@ -5,6 +5,7 @@ using SkiaSharp;
 
 namespace PokeArena.Tests.Integration;
 
+// Ejercita HTTP, autorización y persistencia real con la base aislada de CatalogFixture.
 [Collection("catalog-integration")]
 [Trait("Category","Integration")]
 public sealed class CatalogApiTests(CatalogFixture fixture)

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS card_search_sessions (
     result_count BIGINT NOT NULL DEFAULT 0
 );
 
+-- Relaciona cada sesión con cartas existentes y una posición estable.
 CREATE TABLE IF NOT EXISTS card_search_items (
     session_id UUID NOT NULL REFERENCES card_search_sessions(id) ON DELETE CASCADE,
     position BIGINT NOT NULL,
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS card_search_items (
     UNIQUE (session_id, card_id)
 );
 
+-- IF NOT EXISTS permite repetir esta migración sin recrear las tablas.
 CREATE INDEX IF NOT EXISTS idx_card_search_expiration
     ON card_search_sessions(expires_at);
 

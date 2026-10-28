@@ -50,6 +50,7 @@ async function request<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
 
+  // Authorization identifica al administrador en cada solicitud real.
   if (accessToken) {
     headers.set(
       "Authorization",
@@ -64,6 +65,7 @@ async function request<T>(
       `${API_BASE_URL}${path}`,
       { ...options, headers }
     );
+  // Un fallo de red se diferencia de una respuesta HTTP de la API.
   } catch {
     throw new ApiError(
       0,
@@ -71,6 +73,7 @@ async function request<T>(
     );
   }
 
+  // Extrae el mensaje y los errores por campo que devuelve el servidor.
   if (!response.ok) {
     let detail = "";
 
@@ -92,6 +95,7 @@ async function request<T>(
       // El servidor no devolvió JSON.
     }
 
+    // Distingue falta de autenticación de falta de permisos.
     const message =
       response.status === 401
         ? "Debe iniciar sesión para continuar."
@@ -102,11 +106,13 @@ async function request<T>(
     throw new ApiError(response.status, message);
   }
 
+  // Entrega la respuesta JSON al consumidor con el tipo esperado.
   return (await response.json()) as T;
 }
 
 // Omite filtros vacíos sin descartar valores numéricos como cero.
 function queryString(filters: CardFilters): string {
+  // Codifica los filtros para que tildes y caracteres especiales sean válidos en la URL.
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(filters)) {
@@ -126,6 +132,7 @@ function queryString(filters: CardFilters): string {
 export async function searchCards(
   filters: CardFilters
 ): Promise<CardSearchResult> {
+  // En simulación se devuelve el resultado local sin hacer una petición HTTP.
   if (IS_MOCK_MODE) {
     return mockSearchCards(filters);
   }
@@ -153,6 +160,7 @@ export async function createCard(
     return mockCreateCard(data, idempotencyKey);
   }
 
+  // FormData transporta campos y archivo; el navegador define el límite multipart.
   const form = new FormData();
 
   form.append("name", data.name);
@@ -161,6 +169,7 @@ export async function createCard(
   form.append("type", data.type);
   form.append("rarity", data.rarity);
   form.append("abilityCode", data.abilityCode);
+  // Envía el archivo original para que el servidor valide y genere su miniatura.
   form.append("image", data.image);
 
   return request("/api/cards", {
@@ -191,6 +200,7 @@ export async function createLocation(
   form.append("effectType", data.effectType);
   form.append(
     "effectParameters",
+    // Serializa los parámetros del efecto dentro del formulario multipart.
     JSON.stringify(data.effectParameters)
   );
   form.append("image", data.image);

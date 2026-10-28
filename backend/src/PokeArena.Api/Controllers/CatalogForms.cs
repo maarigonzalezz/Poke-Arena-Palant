@@ -15,6 +15,7 @@ public sealed class CreateCardForm
     [Required] public IFormFile? Image { get; set; }
 }
 
+// Las anotaciones rechazan campos omitidos o fuera de rango antes del controlador.
 public sealed class CreateLocationForm
 {
     [Required, StringLength(120)] public string Name { get; set; } = "";
@@ -31,8 +32,10 @@ internal static class CatalogUpload
 {
     public static async Task<ImageUpload> ReadAsync(IFormFile? file, int count, CancellationToken cancellationToken)
     {
+        // Rechaza archivos vacíos, múltiples o mayores de 5 MB.
         if (file is null || count != 1 || file.Length is 0 or > 5 * 1024 * 1024)
             throw new CatalogValidationException(new() { ["image"] = "Suba una sola imagen no vacía de hasta 5 MB." });
+        // Convierte el archivo HTTP en bytes para no acoplar Application a ASP.NET.
         await using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellationToken);
         return new ImageUpload(buffer.ToArray());

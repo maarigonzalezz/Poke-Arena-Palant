@@ -7,6 +7,7 @@ export async function createMockThumbnail(file: File, kind: ImageKind): Promise<
     const image = new Image();
     image.src = info.previewUrl;
     await image.decode();
+    // El canvas reduce la imagen para almacenarla dentro de la simulación.
     const canvas = document.createElement("canvas");
     canvas.width = kind === "card" ? 200 : 320;
     canvas.height = kind === "card" ? 280 : 240;
@@ -14,6 +15,7 @@ export async function createMockThumbnail(file: File, kind: ImageKind): Promise<
     if (!context) throw new Error("No se pudo preparar la vista previa.");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL("image/webp", 0.85);
+  // Libera la previsualización tanto si el proceso termina como si falla.
   } finally {
     URL.revokeObjectURL(info.previewUrl);
   }

@@ -1,4 +1,4 @@
--- Ejecutar una vez sobre bases existentes; también se ejecuta al inicializar Docker.
+-- Actualiza bases existentes; puede repetirse y también se ejecuta al inicializar Docker.
 BEGIN;
 
 -- Conserva las habilidades ya definidas por el equipo.
@@ -12,6 +12,7 @@ UPDATE card_code_sequences s SET last_number = GREATEST(s.last_number,
     COALESCE((SELECT MAX(RIGHT(c.code,3)::integer) FROM cards c
               WHERE c.card_type=s.card_type AND c.code ~ '^PKA-(FUE|AGU|PLA|ELE|PSI|LUC)-[0-9]{3}$'),0));
 
+-- El trigger protege el código incluso ante actualizaciones directas por SQL.
 CREATE OR REPLACE FUNCTION preserve_card_code() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.code IS DISTINCT FROM OLD.code THEN

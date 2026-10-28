@@ -1,6 +1,6 @@
 ﻿namespace PokeArena.Infrastructure;
 
-// Clase vacía de la plantilla; la búsqueda utiliza PostgresCardSearchRepository.
+// Resto de la plantilla; la persistencia real está en los repositorios PostgreSQL.
 public class Class1
 {
 

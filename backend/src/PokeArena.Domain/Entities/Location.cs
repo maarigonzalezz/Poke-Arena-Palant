@@ -1,80 +1,45 @@
 
 namespace PokeArena.Domain.Entities;
 
-/// <summary>
-/// Representa una ubicación del juego con sus reglas, efecto y estado vigente.
-/// </summary>
-/// <remarks>
-/// La ubicación mantiene una versión actual para identificar su configuración
-/// vigente. Las versiones anteriores se conservan mediante instantáneas
-/// almacenadas en la tabla location_versions.
-/// </remarks>
+/// <summary>Configuración persistida de una ubicación; sus versiones se guardan como instantáneas.</summary>
 public sealed class Location
 {
-    /// <summary>
-    /// Obtiene el identificador único de la ubicación.
-    /// </summary>
+    /// <summary>Identificador generado por PostgreSQL.</summary>
     public long Id { get; init; }
 
-    /// <summary>
-    /// Obtiene el nombre visible de la ubicación.
-    /// </summary>
+    /// <summary>Nombre mostrado al administrador.</summary>
     public required string Name { get; init; }
 
-    /// <summary>
-    /// Obtiene la descripción de la ubicación y sus características.
-    /// </summary>
+    /// <summary>Descripción del escenario y sus condiciones.</summary>
     public required string Description { get; init; }
 
-    /// <summary>
-    /// Obtiene la cantidad máxima de cartas permitidas en la ubicación.
-    /// </summary>
+    /// <summary>Capacidad por jugador: cero impide jugar cartas en esta ubicación.</summary>
     public int MaxCards { get; init; }
 
-    /// <summary>
-    /// Obtiene el modo de cálculo de la energía adicional.
-    /// Los valores admitidos son Fixed y PerCard.
-    /// </summary>
+    /// <summary>Fixed otorga energía fija; PerCard la calcula por carta propia.</summary>
     public required string EnergyMode { get; init; }
 
-    /// <summary>
-    /// Obtiene la cantidad de energía adicional según el modo configurado.
-    /// </summary>
+    /// <summary>Energía adicional: 0 a 3 en Fixed y 0 a 2 en PerCard.</summary>
     public int ExtraEnergy { get; init; }
 
-    /// <summary>
-    /// Obtiene el identificador del tipo de efecto aplicado por la ubicación.
-    /// </summary>
+    /// <summary>Selecciona la regla que interpretará el motor de partidas.</summary>
     public required string EffectType { get; init; }
 
-    /// <summary>
-    /// Obtiene los parámetros del efecto en formato JSON serializado.
-    /// Su estructura depende del tipo de efecto configurado.
-    /// </summary>
+    /// <summary>JSON con los parámetros específicos del efecto seleccionado.</summary>
     public required string EffectParameters { get; init; }
 
-    /// <summary>
-    /// Obtiene el estado de procesamiento de la imagen de la ubicación.
-    /// </summary>
+    /// <summary>Ready indica que se guardaron el original y la miniatura.</summary>
     public required string ImageStatus { get; init; }
 
-    /// <summary>
-    /// Obtiene la ruta o referencia de la imagen original, si existe.
-    /// </summary>
+    /// <summary>Ruta pública del original; el archivo se almacena fuera de PostgreSQL.</summary>
     public string? ImageOriginalPath { get; init; }
 
-    /// <summary>
-    /// Obtiene la ruta o referencia de la imagen reducida, si existe.
-    /// </summary>
+    /// <summary>Ruta de la miniatura de 320 × 240 generada por el servidor.</summary>
     public string? ImageSmallPath { get; init; }
 
-    /// <summary>
-    /// Obtiene el número de la versión vigente de la ubicación.
-    /// </summary>
+    /// <summary>La creación inicia en versión 1 y conserva una instantánea.</summary>
     public int CurrentVersion { get; init; }
 
-    /// <summary>
-    /// Indica si la ubicación está habilitada para su uso normal.
-    /// </summary>
+    /// <summary>La disponibilidad también exige imágenes completas y estado Ready.</summary>
     public bool Active { get; init; }
 }

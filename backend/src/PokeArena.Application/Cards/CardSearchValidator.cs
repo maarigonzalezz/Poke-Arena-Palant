@@ -28,18 +28,21 @@ public static class CardSearchValidator
     {
         var errors = new Dictionary<string, string>();
 
+        // Limita el texto aceptado por cada criterio antes de construir la consulta.
         foreach (var (field, value, limit) in new[] {
             ("code", query.Code, 20), ("name", query.Name, 120),
             ("abilityCode", query.AbilityCode, 20), ("abilityTrigger", query.AbilityTrigger, 50),
             ("abilityEffect", query.AbilityEffect, 50) })
             if (value?.Length > limit) errors[field] = $"Admite hasta {limit} caracteres.";
 
+        // Acota cuántas cartas pueden viajar en una sola respuesta.
         if (query.PageSize < 1 || query.PageSize > 100)
         {
             errors["pageSize"] =
                 "Debe estar entre 1 y 100.";
         }
 
+        // Reserva espacio para sumar el tamaño de página sin desbordar el cursor.
         if (query.After < 0 || query.After > long.MaxValue - 100)
         {
             errors["after"] =
@@ -72,6 +75,7 @@ public static class CardSearchValidator
             errors["maxPower"] =
                 "Debe estar entre -20 y 20.";
 
+        // Rechaza rangos invertidos aunque ambos extremos sean válidos por separado.
         if (query.MinCost > query.MaxCost)
             errors["costRange"] =
                 "El mínimo supera al máximo.";
@@ -108,6 +112,7 @@ public static class CardSearchValidator
             errors["rarity"] = "Rareza no permitida.";
         }
 
+        // Continuar una sesión exige conservar los filtros de su consulta inicial.
         if (query.SearchId.HasValue)
         {
             if (query.Code is not null ||

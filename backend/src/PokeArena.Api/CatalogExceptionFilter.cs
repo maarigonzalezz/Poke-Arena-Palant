@@ -10,6 +10,7 @@ public sealed class CatalogExceptionFilter(ILogger<CatalogExceptionFilter> logge
 {
     public void OnException(ExceptionContext context)
     {
+        // Convierte excepciones conocidas en respuestas que el frontend puede interpretar.
         context.Result = context.Exception switch
         {
             CatalogValidationException ex => new BadRequestObjectResult(new { message=ex.Message, errors=ex.Errors }),
@@ -21,6 +22,7 @@ public sealed class CatalogExceptionFilter(ILogger<CatalogExceptionFilter> logge
         if (context.Result is not null)
         {
             if (context.Exception is NpgsqlException or IOException) logger.LogError(context.Exception, "Fallo al guardar o consultar el catálogo.");
+            // Marca el error como atendido para usar la respuesta construida por el filtro.
             context.ExceptionHandled = true;
         }
     }

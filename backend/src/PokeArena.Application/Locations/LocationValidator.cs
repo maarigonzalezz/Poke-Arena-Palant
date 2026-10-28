@@ -1,14 +1,7 @@
 
 namespace PokeArena.Application.Locations;
 
-/// <summary>
-/// Valida los datos de entrada para crear una ubicación.
-/// </summary>
-/// <remarks>
-/// Comprueba los campos generales y que los parámetros JSON coincidan con el
-/// efecto seleccionado. Devuelve todos los errores detectados en una sola
-/// ejecución para que la API pueda informar al cliente de forma conjunta.
-/// </remarks>
+/// <summary>Comprueba capacidad, energía y parámetros del efecto antes de guardar.</summary>
 public static class LocationValidator
 {
     /// <summary>Tipos de carta permitidos en parámetros de efectos.</summary>
@@ -22,11 +15,7 @@ public static class LocationValidator
         "Lucha"
     ];
 
-    /// <summary>
-    /// Valida los campos y las restricciones de una ubicación.
-    /// </summary>
-    /// <param name="request">Datos de la ubicación que se desea crear.</param>
-    /// <returns>Lista de errores encontrados; vacía si la solicitud es válida.</returns>
+    /// <summary>Acumula errores para informar todas las reglas incumplidas en una respuesta.</summary>
     public static List<string> Validate(
         CreateLocationRequest request)
     {
@@ -47,12 +36,14 @@ public static class LocationValidator
             errors.Add("La descripción es obligatoria.");
         }
 
+        // Cero es una capacidad válida y significa que no se admiten cartas.
         if (request.MaxCards < 0 || request.MaxCards > 5)
         {
             errors.Add(
                 "El límite de cartas debe estar entre 0 y 5.");
         }
 
+        // Valida primero la modalidad y luego el rango de energía correspondiente.
         if (request.EnergyMode is not "Fixed" and not "PerCard")
         {
             errors.Add(
@@ -92,6 +83,7 @@ public static class LocationValidator
         {
             try
             {
+                // Analiza el JSON antes de comprobar las propiedades específicas del efecto.
                 using var document =
                     System.Text.Json.JsonDocument.Parse(
                         request.EffectParameters);
@@ -120,17 +112,13 @@ public static class LocationValidator
         return errors;
     }
 
-    /// <summary>
-    /// Valida las propiedades requeridas por el tipo de efecto seleccionado.
-    /// </summary>
-    /// <param name="effectType">Tipo de efecto solicitado.</param>
-    /// <param name="parameters">Objeto JSON con los parámetros del efecto.</param>
-    /// <param name="errors">Lista donde se agregan los errores encontrados.</param>
+    /// <summary>Valida las propiedades requeridas por el tipo de efecto seleccionado.</summary>
     private static void ValidateEffectParameters(
         string effectType,
         System.Text.Json.JsonElement parameters,
         List<string> errors)
     {
+        // Cada efecto define su propio contrato de parámetros.
         switch (effectType)
         {
             case "TypeBonus":
@@ -148,6 +136,7 @@ public static class LocationValidator
 
                 break;
 
+            // affectedType nulo aplica el modificador a todos los tipos.
             case "CostModifier":
                 if (!TryGetInteger(parameters, "amount", -5, 5))
                 {
@@ -181,6 +170,7 @@ public static class LocationValidator
                     break;
                 }
 
+                // El conjunto permite detectar turnos repetidos además de validar el rango de 1 a 6.
                 var selectedTurns = new HashSet<int>();
 
                 foreach (var turn in turns.EnumerateArray())
@@ -202,15 +192,7 @@ public static class LocationValidator
         }
     }
 
-    /// <summary>
-    /// Comprueba que una propiedad JSON contenga uno de los tipos de carta admitidos.
-    /// </summary>
-    /// <param name="parameters">Objeto JSON que contiene los parámetros del efecto.</param>
-    /// <param name="propertyName">Nombre de la propiedad que se debe comprobar.</param>
-    /// <returns>
-    /// <see langword="true"/> si la propiedad existe, es texto y contiene un tipo admitido;
-    /// de lo contrario, <see langword="false"/>.
-    /// </returns>
+    /// <summary>Evita que un efecto haga referencia a un tipo de carta inexistente.</summary>
     private static bool TryGetAllowedCardType(
         System.Text.Json.JsonElement parameters,
         string propertyName)
@@ -220,17 +202,7 @@ public static class LocationValidator
             && AllowedCardTypes.Contains(value.GetString());
     }
 
-    /// <summary>
-    /// Comprueba que una propiedad JSON sea un entero dentro del rango indicado.
-    /// </summary>
-    /// <param name="parameters">Objeto JSON que contiene los parámetros del efecto.</param>
-    /// <param name="propertyName">Nombre de la propiedad que se debe comprobar.</param>
-    /// <param name="minimum">Valor mínimo permitido, inclusive.</param>
-    /// <param name="maximum">Valor máximo permitido, inclusive.</param>
-    /// <returns>
-    /// <see langword="true"/> si la propiedad es un entero dentro del rango;
-    /// de lo contrario, <see langword="false"/>.
-    /// </returns>
+    /// <summary>Rechaza números fraccionarios o fuera del rango permitido para el efecto.</summary>
     private static bool TryGetInteger(
         System.Text.Json.JsonElement parameters,
         string propertyName,

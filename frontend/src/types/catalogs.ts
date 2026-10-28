@@ -9,6 +9,7 @@ export const CARD_TYPES = [
   "Lucha",
 ] as const;
 
+// Deriva el tipo TypeScript del catálogo para evitar valores distintos en la interfaz.
 export type CardType = (typeof CARD_TYPES)[number];
 
 export const RARITIES = [
@@ -31,6 +32,7 @@ export type EffectType = (typeof EFFECT_TYPES)[number];
 
 export type EnergyMode = "Fixed" | "PerCard";
 
+// Incluye parámetros del efecto y la restricción opcional por tipo de carta.
 export interface Ability {
   code: string;
   name: string;
@@ -40,6 +42,7 @@ export interface Ability {
   restrictedCardType?: CardType | null;
 }
 
+// Contrato de lectura utilizado para dibujar una carta en el catálogo.
 export interface Card {
   code: string;
   name: string;
@@ -84,6 +87,7 @@ export interface CardSearchResult {
   totalCount: number;
 }
 
+// Contrato de escritura: incluye la imagen original, pero no un código asignado.
 export interface CreateCardInput {
   name: string;
   cost: number;
@@ -94,6 +98,7 @@ export interface CreateCardInput {
   image: File;
 }
 
+// La configuración del efecto viaja como objeto hasta serializarse en el servicio.
 export interface CreateLocationInput {
   name: string;
   description: string;

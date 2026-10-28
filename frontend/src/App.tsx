@@ -20,7 +20,9 @@ const pages: Record<Page, string> = {
 
 /** Organiza las pantallas del catálogo y los controles del modo simulado. */
 export default function App() {
+  // La navegación cambia la pantalla mediante estado local, sin cambiar la URL.
   const [page, setPage] = useState<Page>("search");
+  // Cambiar la key remonta la pantalla para recargar datos al cambiar de sesión.
   const [version, setVersion] = useState(0);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -32,6 +34,7 @@ export default function App() {
     setResetError("");
     try {
       await resetMockCatalog();
+      // Fuerza una nueva lectura después de restablecer los datos simulados.
       setVersion(value => value + 1);
       setPage("search");
     } catch {
@@ -49,6 +52,7 @@ export default function App() {
         </div>
 
         <p className="nav-label">Administración</p>
+        {/* Los botones seleccionan qué pantalla administrativa se monta. */}
         <nav aria-label="Administración del catálogo">
           {(Object.entries(pages) as [Page, string][]).map(
             ([key, label]) => (
@@ -81,6 +85,7 @@ export default function App() {
             <span aria-hidden="true" />{IS_MOCK_MODE ? "Simulación" : "Catálogo del juego"}
           </span>
         </div>
+        {/* El acceso con token manual se muestra solo durante desarrollo real. */}
         {!IS_MOCK_MODE && import.meta.env.DEV && (
           <DevelopmentAuth onChange={() => setVersion(value => value + 1)} />
         )}
@@ -98,6 +103,7 @@ export default function App() {
           </div>
         )}
 
+        {/* Solo se monta la pantalla seleccionada; version fuerza su reinicio. */}
         {page === "search" && <SearchCardPage key={version} />}
         {page === "card" && <CreateCardPage key={version} />}
         {page === "location" && <CreateLocationPage key={version} />}

@@ -4,6 +4,7 @@ using PokeArena.Application.Cards;
 
 namespace PokeArena.Infrastructure.Cards;
 
+// Consulta habilidades activas; la restricción de tipo guía la selección del frontend.
 public sealed class PostgresAbilityRepository(NpgsqlDataSource dataSource) : IAbilityRepository
 {
     public async Task<IReadOnlyList<AbilityItem>> GetAsync(CancellationToken cancellationToken)
@@ -14,6 +15,7 @@ public sealed class PostgresAbilityRepository(NpgsqlDataSource dataSource) : IAb
             FROM abilities WHERE active = TRUE ORDER BY code
             """, connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        // Convierte filas y parámetros JSONB a las habilidades que recibirá el formulario.
         var result = new List<AbilityItem>();
         while (await reader.ReadAsync(cancellationToken))
             result.Add(new(reader.GetString(0), reader.GetString(1),

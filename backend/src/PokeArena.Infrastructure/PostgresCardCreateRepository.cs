@@ -14,6 +14,7 @@ public sealed class PostgresCardCreateRepository(CatalogTransaction transactions
     {
         var errors = CardCreateValidator.Validate(query);
         if (errors.Count > 0) throw new CatalogValidationException(errors);
+        // Normaliza espacios antes de calcular la huella y persistir los datos.
         query = query with { Name = query.Name.Trim(), AbilityCode = query.AbilityCode.Trim() };
         StoredImage? stored = null;
         try
@@ -23,6 +24,7 @@ public sealed class PostgresCardCreateRepository(CatalogTransaction transactions
             {
                 string abilityName, parameters;
                 string? trigger, effect;
+                // Comprueba en la base que la habilidad exista, esté activa y sea compatible con el tipo.
                 await using (var ability = new NpgsqlCommand("""
                     SELECT name, trigger_type, effect_type, parameters::text, restricted_card_type
                     FROM abilities WHERE code=@code AND active=TRUE FOR SHARE
@@ -52,10 +54,13 @@ public sealed class PostgresCardCreateRepository(CatalogTransaction transactions
                     sequence.Parameters.AddWithValue("type", query.Type);
                     var value = await sequence.ExecuteScalarAsync(cancellationToken);
                     if (value is null) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+                    // El límite de 999 conserva el formato de tres dígitos por tipo.
                     number = (int)value;
                     if (number > 999) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
                 }
+                // Combina el prefijo del tipo con el consecutivo rellenado con ceros.
                 var code = $"PKA-{CardCreateValidator.TypePrefixes[query.Type]}-{number:D3}";
+                // Genera ambas imágenes antes de insertar la carta con estado Ready.
                 stored = await images.SaveAsync(image, "cards", cancellationToken);
                 long id;
                 await using (var insert = new NpgsqlCommand("""
@@ -74,11 +79,13 @@ public sealed class PostgresCardCreateRepository(CatalogTransaction transactions
                     insert.Parameters.AddWithValue("ability", query.AbilityCode);
                     insert.Parameters.AddWithValue("original", stored.OriginalUrl);
                     insert.Parameters.AddWithValue("small", stored.SmallUrl);
+                    // Recupera el identificador generado por PostgreSQL para registrar su versión.
                     id = (long)(await insert.ExecuteScalarAsync(cancellationToken))!;
                 }
                 var item = new CardCreateItem(id, code, query.Name, query.Cost, query.Power,
                     query.Type, query.Rarity, "Ready", stored.OriginalUrl, query.AbilityCode,
                     abilityName, trigger, effect, parameters, stored.SmallUrl);
+                // La instantánea conserva la configuración inicial para el historial de la carta.
                 await using var version = new NpgsqlCommand("""
                     INSERT INTO card_versions(card_id,version,snapshot) VALUES (@id,1,@snapshot::jsonb)
                     """, connection, transaction);
@@ -88,6 +95,7 @@ public sealed class PostgresCardCreateRepository(CatalogTransaction transactions
                 return new CardCreateResult(item);
             }, cancellationToken);
         }
+        // Si falla la operación, intenta retirar los archivos que ya se habían creado.
         catch { if (stored is not null) images.Delete(stored); throw; }
     }
 }

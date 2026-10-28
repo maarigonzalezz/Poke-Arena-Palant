@@ -12,6 +12,7 @@ import {
   searchCards,
 } from "../services/catalogApi";
 
+// Los inputs guardan texto para distinguir un campo vacío del número cero.
 type FilterValues = {
   code: string;
   name: string;
@@ -51,6 +52,7 @@ function asNumber(value: string): number | undefined {
   return value.trim() === "" ? undefined : Number(value);
 }
 
+// Convierte el estado del formulario al contrato que espera catalogApi.
 function getFilters(values: FilterValues): CardFilters {
   return {
     code: values.code || undefined,
@@ -85,6 +87,7 @@ function validate(values: FilterValues): string | null {
     ["Poder máximo", values.maxPower, -20, 20],
   ] as const;
 
+  // Comprueba todos los límites numéricos antes de enviar la consulta.
   for (const [name, raw, min, max] of fields) {
     if (raw.trim() === "") continue;
     const n = Number(raw);
@@ -138,6 +141,7 @@ function formatParameters(
 export default function SearchCardPage() {
   const [filters, setFilters] = useState<FilterValues>(EMPTY);
   const [cards, setCards] = useState<Card[]>([]);
+  // La sesión y su cursor permiten continuar el mismo conjunto de resultados.
   const [searchId, setSearchId] = useState<string | null>(null);
   const [nextPosition, setNextPosition] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
@@ -152,6 +156,7 @@ export default function SearchCardPage() {
     }));
   }
 
+  // Cada búsqueda inicia una sesión nueva; Cargar más conserva la sesión existente.
   async function search() {
     const problem = validate(filters);
     if (problem) {
@@ -161,6 +166,7 @@ export default function SearchCardPage() {
 
     setLoading(true);
     setError("");
+    // Descarta resultados anteriores antes de iniciar otra búsqueda.
     setSearched(false);
     setCards([]);
     setSearchId(null);
@@ -169,6 +175,7 @@ export default function SearchCardPage() {
     try {
       const result = await searchCards(getFilters(filters));
       setCards(result.items);
+      // Conserva el identificador devuelto por la API para las siguientes páginas.
       setSearchId(result.searchId);
       setNextPosition(result.nextPosition);
       setTotal(result.totalCount);
@@ -194,6 +201,7 @@ export default function SearchCardPage() {
         pageSize: PAGE_SIZE,
       });
 
+      // Añade la página recibida sin reemplazar las cartas que ya se muestran.
       setCards((previous) => [...previous, ...result.items]);
       setNextPosition(result.nextPosition);
     } catch (e) {
@@ -203,6 +211,7 @@ export default function SearchCardPage() {
     }
   }
 
+  // Limpia filtros, resultados y cursor para empezar de nuevo.
   function clear() {
     setFilters({ ...EMPTY });
     setCards([]);
@@ -223,6 +232,7 @@ export default function SearchCardPage() {
         </div>
       </header>
 
+      {/* El formulario reúne los filtros; enviar ejecuta search sin recargar la página. */}
       <form
         className="panel"
         onSubmit={(e) => {
@@ -399,6 +409,7 @@ export default function SearchCardPage() {
         </div>
       </form>
 
+      {/* Separa el estado de búsqueda de la presentación de resultados. */}
       <section className="panel results-panel" aria-busy={loading}>
         <div className="section-heading">
           <h2>Resultados</h2>
@@ -415,6 +426,7 @@ export default function SearchCardPage() {
           </div>
         )}
 
+        {/* Cada resultado muestra la imagen y los atributos necesarios para revisarlo. */}
         <div className="cards-grid">
           {cards.map((card) => (
             <article className="catalog-card" key={card.code} data-type={card.type}>
@@ -454,6 +466,7 @@ export default function SearchCardPage() {
           ))}
         </div>
 
+        {/* La API devuelve null cuando no quedan páginas por consultar. */}
         {nextPosition !== null && (
           <div className="actions">
             <button

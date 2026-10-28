@@ -10,11 +10,12 @@ using PokeArena.Application.Locations;
 using PokeArena.Infrastructure.Cards;
 using PokeArena.Infrastructure.Locations;
 
-// Configura la API, el acceso desde React y los servicios de búsqueda autenticada.
+// Punto de entrada: conecta HTTP, autenticación y repositorios del catálogo.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(options => options.Filters.Add<CatalogExceptionFilter>());
 
+// CORS permite que el frontend autorizado consulte la API desde otro origen.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactFrontend", policy =>
@@ -26,13 +27,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Conexión PostgreSQL compartida mediante
-// un pool administrado por Npgsql.
+// Npgsql reutiliza conexiones PostgreSQL mediante un pool compartido.
 builder.Services.AddSingleton(services => NpgsqlDataSource.Create(
     services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("Falta ConnectionStrings:Postgres.")));
 
-// Inyección de dependencias.
+// Asocia cada interfaz de Application con su implementación en Infrastructure.
 builder.Services.AddScoped<
     ICardSearchRepository,
     PostgresCardSearchRepository
@@ -49,8 +49,7 @@ builder.Services.AddScoped<
     PostgresLocationRepository
 >();
 
-// Configuración de autenticación JWT.
-// Requiere un proveedor real configurado.
+// Valida JWT locales de desarrollo o los emitidos por el proveedor configurado.
 var authority =
     builder.Configuration["Authentication:Authority"];
 
@@ -74,16 +73,19 @@ builder.Services
         options.TokenValidationParameters.ValidateAudience = true;
         options.TokenValidationParameters.ValidateLifetime = true;
         options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+        // El claim role es el que consulta Authorize al exigir ContentAdmin.
         options.TokenValidationParameters.RoleClaimType = "role";
         options.TokenValidationParameters.NameClaimType = "sub";
         options.Events = new JwtBearerEvents
         {
+            // 401 indica una credencial ausente, inválida o vencida.
             OnChallenge = context =>
             {
                 context.HandleResponse();
                 context.Response.StatusCode = 401;
                 return context.Response.WriteAsJsonAsync(new { type="authentication_required", message="Debe iniciar sesión para continuar." });
             },
+            // 403 indica que el usuario autenticado carece del rol requerido.
             OnForbidden = context =>
             {
                 context.Response.StatusCode = 403;
@@ -101,6 +103,7 @@ Directory.CreateDirectory(filesDirectory);
 
 app.UseCors("ReactFrontend");
 
+// Las imágenes se sirven públicamente en /files; los endpoints administrativos requieren JWT.
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
@@ -108,9 +111,11 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/files"
 });
 
+// Primero se identifica al usuario y después se comprueba su permiso para la operación.
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Activa las rutas declaradas en los controladores del catálogo.
 app.MapControllers();
 
 // Indica disponibilidad HTTP; no consulta PostgreSQL ni MongoDB.

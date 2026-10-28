@@ -1,43 +1,27 @@
 
 namespace PokeArena.Application.Locations;
 
-/// <summary>
-/// Representa los datos proporcionados para crear una ubicación.
-/// </summary>
+/// <summary>Datos editables recibidos del formulario; identidad e imágenes se asignan al guardar.</summary>
 public sealed class CreateLocationRequest
 {
-    /// <summary>
-    /// Obtiene o establece el nombre de la ubicación.
-    /// </summary>
+    /// <summary>Nombre obligatorio de la ubicación.</summary>
     public required string Name { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece la descripción de la ubicación.
-    /// </summary>
+    /// <summary>Descripción obligatoria del escenario.</summary>
     public required string Description { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece la cantidad máxima de cartas permitidas.
-    /// </summary>
+    /// <summary>Capacidad por jugador entre 0 y 5.</summary>
     public int MaxCards { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece el modo de cálculo de energía adicional.
-    /// </summary>
+    /// <summary>Selecciona energía fija por turno o por carta propia.</summary>
     public required string EnergyMode { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece la cantidad de energía adicional.
-    /// </summary>
+    /// <summary>El rango permitido depende de la modalidad de energía.</summary>
     public int ExtraEnergy { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece el tipo de efecto de la ubicación.
-    /// </summary>
+    /// <summary>None, TypeBonus, CostModifier o TurnRestriction.</summary>
     public required string EffectType { get; init; }
 
-    /// <summary>
-    /// Obtiene o establece los parámetros del efecto en formato JSON.
-    /// </summary>
+    /// <summary>JSON que LocationValidator verifica según el efecto.</summary>
     public string EffectParameters { get; init; } = "{}";
 }

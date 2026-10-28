@@ -1,6 +1,4 @@
--- SOLO PARA DESARROLLO Y PRUEBAS
--- No ejecutar en producción.
--- Inserta 12 cartas tras init.sql; los códigos existentes se conservan.
+-- Solo desarrollo: inserta 12 cartas tras init.sql sin reemplazar códigos existentes.
 
 INSERT INTO cards (
     code, name, cost, power,

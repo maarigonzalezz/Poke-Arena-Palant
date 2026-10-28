@@ -15,21 +15,26 @@ export default function DevelopmentAuth({ onChange }: { onChange: () => void }) 
     if (!token.trim() || loading) return;
     setLoading(true);
     setError("");
+    // Adjunta el JWT a las siguientes solicitudes del servicio.
     setCatalogAccessToken(token.trim());
     try {
+      // Consultar habilidades confirma que el JWT permite acceder como administrador.
       await getAbilities();
       setConnected(true);
       setToken("");
+    // Si la verificación falla, descarta el token y muestra el motivo.
     } catch (cause) {
       setCatalogAccessToken(null);
       setConnected(false);
       setError(cause instanceof Error ? cause.message : "No se pudo verificar la sesión.");
     } finally {
       setLoading(false);
+      // Notifica a App para recargar las pantallas con el estado de acceso actual.
       onChange();
     }
   }
 
+  // Quita la credencial de memoria y restablece el acceso local.
   function disconnect() {
     setCatalogAccessToken(null);
     setConnected(false);
