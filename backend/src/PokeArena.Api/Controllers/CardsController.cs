@@ -9,23 +9,21 @@ namespace PokeArena.Api.Controllers;
 [ApiController]
 [Route("api/cards")]
 [Authorize(Roles = "ContentAdmin")]
-public sealed class CardsController(ICardSearchRepository search, ICardCreateRepository create) : ControllerBase
+public sealed class CardsController(CardService cards) : ControllerBase
 {
     // GET: valida filtros y entrega una página de la búsqueda del administrador.
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] CardSearchQuery query, CancellationToken cancellationToken)
     {
-        var errors = CardSearchValidator.Validate(query);
-        if (errors.Count > 0) return BadRequest(new { type="invalid_search_criteria", message="Criterios de búsqueda inválidos.", errors });
         // Identifica al dueño de la sesión de búsqueda a partir del JWT.
         var actor = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(actor)) return Unauthorized(new { message="No se pudo identificar al usuario." });
-        try { return Ok(await search.SearchAsync(actor, query, cancellationToken)); }
+        try { return Ok(await cards.SearchAsync(actor, query, cancellationToken)); }
         // Una sesión inexistente o vencida se informa como 404.
         catch (KeyNotFoundException ex) { return NotFound(new { type="search_not_found", message=ex.Message }); }
     }
 
-    // POST: recibe FormData e imagen y delega la creación al repositorio registrado.
+    // POST: traduce HTTP; el servicio coordina validación, imágenes y persistencia.
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(6 * 1024 * 1024)]
@@ -35,7 +33,7 @@ public sealed class CardsController(ICardSearchRepository search, ICardCreateRep
         var actor = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(actor)) return Unauthorized(new { message="No se pudo identificar al usuario." });
         var image = await CatalogUpload.ReadAsync(form.Image, Request.Form.Files.Count, cancellationToken);
-        var result = await create.CreateAsync(actor, new CardCreateQuery
+        var result = await cards.CreateAsync(actor, new CardCreateQuery
         {
             Name=form.Name, Cost=form.Cost!.Value, Power=form.Power!.Value,
             Type=form.Type, Rarity=form.Rarity, AbilityCode=form.AbilityCode

@@ -9,7 +9,7 @@ namespace PokeArena.Api.Controllers;
 [ApiController]
 [Route("api/locations")]
 [Authorize(Roles = "ContentAdmin")]
-public sealed class LocationsController(ILocationRepository repository) : ControllerBase
+public sealed class LocationsController(LocationService locations) : ControllerBase
 {
     [HttpPost]
     [Consumes("multipart/form-data")]
@@ -22,7 +22,7 @@ public sealed class LocationsController(ILocationRepository repository) : Contro
         // Verifica el archivo recibido antes de ejecutar las reglas de creación.
         var image = await CatalogUpload.ReadAsync(form.Image, Request.Form.Files.Count, cancellationToken);
         // Traduce el formulario HTTP al contrato que entiende Application.
-        var result = await repository.CreateAsync(actor, new CreateLocationRequest
+        var result = await locations.CreateAsync(actor, new CreateLocationRequest
         {
             Name=form.Name, Description=form.Description, MaxCards=form.MaxCards!.Value,
             EnergyMode=form.EnergyMode, ExtraEnergy=form.ExtraEnergy!.Value,

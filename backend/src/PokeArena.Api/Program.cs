@@ -1,14 +1,15 @@
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using PokeArena.Api;
 using PokeArena.Application.Common;
 using PokeArena.Infrastructure;
+using PokeArena.Infrastructure.Persistence;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Locations;
 using PokeArena.Infrastructure.Cards;
-using PokeArena.Infrastructure.Locations;
 
 // Punto de entrada: conecta HTTP, autenticación y repositorios del catálogo.
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +33,10 @@ builder.Services.AddSingleton(services => NpgsqlDataSource.Create(
     services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("Falta ConnectionStrings:Postgres.")));
 
+// Un DbContext por solicitud comparte seguimiento y transacciones sin compartir estado entre usuarios.
+builder.Services.AddDbContext<PokeArenaDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
+
 // Asocia cada interfaz de Application con su implementación en Infrastructure.
 builder.Services.AddScoped<
     ICardSearchRepository,
@@ -40,14 +45,13 @@ builder.Services.AddScoped<
 
 builder.Services.AddSingleton<IImageStore>(services => new CatalogImageStore(StorageRoot(
     services.GetRequiredService<IConfiguration>(), services.GetRequiredService<IHostEnvironment>())));
-builder.Services.AddScoped<CatalogTransaction>();
+// Los controladores usan servicios; los repositorios de escritura nacen dentro de la transacción.
+builder.Services.AddSingleton<CatalogValidationService>();
+builder.Services.AddScoped<CardService>();
+builder.Services.AddScoped<LocationService>();
+builder.Services.AddScoped<ICatalogTransaction, CatalogTransaction>();
 builder.Services.AddHostedService<SearchSessionCleanup>();
-builder.Services.AddScoped<ICardCreateRepository, PostgresCardCreateRepository>();
 builder.Services.AddScoped<IAbilityRepository, PostgresAbilityRepository>();
-builder.Services.AddScoped<
-    ILocationRepository,
-    PostgresLocationRepository
->();
 
 // Valida JWT locales de desarrollo o los emitidos por el proveedor configurado.
 var authority =

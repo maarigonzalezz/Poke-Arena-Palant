@@ -1,26 +1,22 @@
 using System.Text.Json;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PokeArena.Application.Cards;
+using PokeArena.Infrastructure.Persistence;
 
 namespace PokeArena.Infrastructure.Cards;
 
-// Consulta habilidades activas; la restricción de tipo guía la selección del frontend.
-public sealed class PostgresAbilityRepository(NpgsqlDataSource dataSource) : IAbilityRepository
+// LINQ consulta solo habilidades activas sin mantener entidades en seguimiento.
+public sealed class PostgresAbilityRepository(PokeArenaDbContext db) : IAbilityRepository
 {
     public async Task<IReadOnlyList<AbilityItem>> GetAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
-            SELECT code, name, trigger_type, effect_type, parameters::text, restricted_card_type
-            FROM abilities WHERE active = TRUE ORDER BY code
-            """, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        // Convierte filas y parámetros JSONB a las habilidades que recibirá el formulario.
-        var result = new List<AbilityItem>();
-        while (await reader.ReadAsync(cancellationToken))
-            result.Add(new(reader.GetString(0), reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3),
-                JsonSerializer.Deserialize<JsonElement>(reader.GetString(4)), reader.IsDBNull(5) ? null : reader.GetString(5)));
-        return result;
+        var abilities = await db.Abilities.AsNoTracking().Where(x => x.Active)
+            .OrderBy(x => x.Code).ToListAsync(cancellationToken);
+        return abilities.Select(ToItem).ToList();
     }
+
+    // El JSONB se convierte al contrato público después de materializar la consulta.
+    internal static AbilityItem ToItem(AbilityRecord ability) => new(ability.Code, ability.Name,
+        ability.TriggerType, ability.EffectType, JsonSerializer.Deserialize<JsonElement>(ability.Parameters),
+        ability.RestrictedCardType);
 }

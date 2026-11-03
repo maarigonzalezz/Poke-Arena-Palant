@@ -1,9 +1,10 @@
 using Npgsql;
+using PokeArena.Infrastructure.Persistence;
 
 namespace PokeArena.Api;
 
 /// <summary>Elimina sesiones vencidas; sus resultados se eliminan por la relación en cascada.</summary>
-public sealed class SearchSessionCleanup(NpgsqlDataSource dataSource, ILogger<SearchSessionCleanup> logger) : BackgroundService
+public sealed class SearchSessionCleanup(IServiceScopeFactory scopes, ILogger<SearchSessionCleanup> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -15,8 +16,10 @@ public sealed class SearchSessionCleanup(NpgsqlDataSource dataSource, ILogger<Se
             {
                 try
                 {
-                    await using var command = dataSource.CreateCommand("DELETE FROM card_search_sessions WHERE expires_at <= NOW()");
-                    await command.ExecuteNonQueryAsync(stoppingToken);
+                    // Cada pasada obtiene su contexto; un servicio singleton no comparte DbContext.
+                    await using var scope = scopes.CreateAsyncScope();
+                    var db = scope.ServiceProvider.GetRequiredService<PokeArenaDbContext>();
+                    await db.DeleteExpiredSearchSessionsAsync(stoppingToken);
                 }
                 catch (NpgsqlException ex) { logger.LogWarning(ex, "No se pudieron limpiar las sesiones vencidas."); }
             }

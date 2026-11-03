@@ -1,101 +1,56 @@
 using System.Text.Json;
-using Npgsql;
+using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Common;
+using PokeArena.Domain.Catalogs;
+using PokeArena.Domain.Entities;
+using PokeArena.Infrastructure.Persistence;
 
 namespace PokeArena.Infrastructure.Cards;
 
-/// <summary>Crea código, imágenes, carta y versión inicial sin duplicar reintentos.</summary>
-public sealed class PostgresCardCreateRepository(CatalogTransaction transactions, IImageStore images)
-    : ICardCreateRepository
+/// <summary>Persiste carta y versión con EF, conservando el contador transaccional por tipo.</summary>
+internal sealed class PostgresCardCreateRepository(PokeArenaDbContext db) : ICardCreateRepository
 {
-    public async Task<CardCreateResult> CreateAsync(string actorId, CardCreateQuery query, ImageUpload image,
-        string idempotencyKey, CancellationToken cancellationToken = default)
+    public async Task<CardCreateResult> CreateAsync(CardCreateQuery query, AbilityItem ability, StoredImage image,
+        CancellationToken cancellationToken)
     {
-        var errors = CardCreateValidator.Validate(query);
-        if (errors.Count > 0) throw new CatalogValidationException(errors);
-        // Normaliza espacios antes de calcular la huella y persistir los datos.
-        query = query with { Name = query.Name.Trim(), AbilityCode = query.AbilityCode.Trim() };
-        StoredImage? stored = null;
-        try
-        {
-            return await transactions.RunAsync(actorId, idempotencyKey, "create-card",
-                CatalogTransaction.Fingerprint(query, image), async (connection, transaction) =>
-            {
-                string abilityName, parameters;
-                string? trigger, effect;
-                // Comprueba en la base que la habilidad exista, esté activa y sea compatible con el tipo.
-                await using (var ability = new NpgsqlCommand("""
-                    SELECT name, trigger_type, effect_type, parameters::text, restricted_card_type
-                    FROM abilities WHERE code=@code AND active=TRUE FOR SHARE
-                    """, connection, transaction))
-                {
-                    ability.Parameters.AddWithValue("code", query.AbilityCode);
-                    await using var reader = await ability.ExecuteReaderAsync(cancellationToken);
-                    if (!await reader.ReadAsync(cancellationToken))
-                        throw new CatalogValidationException(new() { ["abilityCode"] = "La habilidad no existe o está inactiva." });
-                    if (!reader.IsDBNull(4) && reader.GetString(4) != query.Type)
-                        throw new CatalogValidationException(new() { ["abilityCode"] = "La habilidad no corresponde al tipo de carta." });
-                    abilityName = reader.GetString(0);
-                    trigger = reader.IsDBNull(1) ? null : reader.GetString(1);
-                    effect = reader.IsDBNull(2) ? null : reader.GetString(2);
-                    parameters = reader.GetString(3);
-                }
+        var prefix = CardTypes.GetPrefix(query.Type);
+        // LINQ no expresa FOR UPDATE; el bloqueo evita asignar el mismo consecutivo en paralelo.
+        var sequence = await db.CardCodeSequences.FromSql($"""
+            SELECT * FROM card_code_sequences WHERE card_type={query.Type} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken);
+        if (sequence is null || sequence.LastNumber >= 999)
+            throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
 
-                // UPDATE bloquea el contador por tipo; la transacción evita códigos repetidos.
-                int number;
-                await using (var sequence = new NpgsqlCommand("""
-                    UPDATE card_code_sequences SET last_number=GREATEST(last_number,
-                        COALESCE((SELECT MAX(RIGHT(code,3)::integer) FROM cards
-                          WHERE card_type=@type AND code ~ '^PKA-(FUE|AGU|PLA|ELE|PSI|LUC)-[0-9]{3}$'),0))+1
-                    WHERE card_type=@type AND last_number < 999 RETURNING last_number
-                    """, connection, transaction))
-                {
-                    sequence.Parameters.AddWithValue("type", query.Type);
-                    var value = await sequence.ExecuteScalarAsync(cancellationToken);
-                    if (value is null) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
-                    // El límite de 999 conserva el formato de tres dígitos por tipo.
-                    number = (int)value;
-                    if (number > 999) throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
-                }
-                // Combina el prefijo del tipo con el consecutivo rellenado con ceros.
-                var code = $"PKA-{CardCreateValidator.TypePrefixes[query.Type]}-{number:D3}";
-                // Genera ambas imágenes antes de insertar la carta con estado Ready.
-                stored = await images.SaveAsync(image, "cards", cancellationToken);
-                long id;
-                await using (var insert = new NpgsqlCommand("""
-                    INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code,
-                        image_status,image_original_path,image_small_path,current_version,active)
-                    VALUES (@code,@name,@cost,@power,@type,@rarity,@ability,'Ready',@original,@small,1,TRUE)
-                    RETURNING id
-                    """, connection, transaction))
-                {
-                    insert.Parameters.AddWithValue("code", code);
-                    insert.Parameters.AddWithValue("name", query.Name);
-                    insert.Parameters.AddWithValue("cost", query.Cost);
-                    insert.Parameters.AddWithValue("power", query.Power);
-                    insert.Parameters.AddWithValue("type", query.Type);
-                    insert.Parameters.AddWithValue("rarity", query.Rarity);
-                    insert.Parameters.AddWithValue("ability", query.AbilityCode);
-                    insert.Parameters.AddWithValue("original", stored.OriginalUrl);
-                    insert.Parameters.AddWithValue("small", stored.SmallUrl);
-                    // Recupera el identificador generado por PostgreSQL para registrar su versión.
-                    id = (long)(await insert.ExecuteScalarAsync(cancellationToken))!;
-                }
-                var item = new CardCreateItem(id, code, query.Name, query.Cost, query.Power,
-                    query.Type, query.Rarity, "Ready", stored.OriginalUrl, query.AbilityCode,
-                    abilityName, trigger, effect, parameters, stored.SmallUrl);
-                // La instantánea conserva la configuración inicial para el historial de la carta.
-                await using var version = new NpgsqlCommand("""
-                    INSERT INTO card_versions(card_id,version,snapshot) VALUES (@id,1,@snapshot::jsonb)
-                    """, connection, transaction);
-                version.Parameters.AddWithValue("id", id);
-                version.Parameters.AddWithValue("snapshot", JsonSerializer.Serialize(item, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-                await version.ExecuteNonQueryAsync(cancellationToken);
-                return new CardCreateResult(item);
-            }, cancellationToken);
-        }
-        // Si falla la operación, intenta retirar los archivos que ya se habían creado.
-        catch { if (stored is not null) images.Delete(stored); throw; }
+        // Reconcilia el contador con cartas importadas sin cargar el catálogo en memoria.
+        var pattern = $"^PKA-{prefix}-[0-9]{{3}}$";
+        var lastExisting = await db.Cards.Where(x => x.CardType == query.Type && Regex.IsMatch(x.Code, pattern))
+            .Select(x => (int?)Convert.ToInt32(x.Code.Substring(x.Code.Length - 3))).MaxAsync(cancellationToken) ?? 0;
+        var number = Math.Max(sequence.LastNumber, lastExisting) + 1;
+        if (number > 999)
+            throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+        sequence.LastNumber = number;
+
+        var card = new Card
+        {
+            Code = $"PKA-{prefix}-{number:D3}", Name = query.Name, Cost = query.Cost, Power = query.Power,
+            CardType = query.Type, Rarity = query.Rarity, AbilityCode = query.AbilityCode,
+            ImageStatus = "Ready", ImageOriginalPath = image.OriginalUrl, ImageSmallPath = image.SmallUrl,
+            CurrentVersion = 1, Active = true
+        };
+        db.Cards.Add(card);
+        // SaveChanges obtiene el ID, pero la transacción externa aún puede revertir todo.
+        await db.SaveChangesAsync(cancellationToken);
+        var item = new CardCreateItem(card.Id, card.Code, card.Name, card.Cost, card.Power,
+            card.CardType, card.Rarity, card.ImageStatus, card.ImageOriginalPath, card.AbilityCode,
+            ability.Name, ability.Trigger, ability.Effect, ability.Parameters.GetRawText(), image.SmallUrl);
+        db.CardVersions.Add(new CardVersion
+        {
+            CardId = card.Id, Version = 1,
+            Snapshot = JsonSerializer.Serialize(item, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return new CardCreateResult(item);
     }
 }

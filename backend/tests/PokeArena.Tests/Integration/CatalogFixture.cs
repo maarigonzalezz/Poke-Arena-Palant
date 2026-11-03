@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using PokeArena.Infrastructure.Persistence;
 
 namespace PokeArena.Tests.Integration;
 
@@ -92,6 +93,13 @@ public sealed class CatalogFixture : IAsyncLifetime
 
     public async Task<long> Count(string sql)
     { await using var command=Database.CreateCommand(sql); return Convert.ToInt64(await command.ExecuteScalarAsync()); }
+
+    // Usa el contexto registrado por la API contra el PostgreSQL real del contenedor.
+    public async Task<int> DeleteExpiredSessions()
+    {
+        await using var scope = app!.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<PokeArenaDbContext>().DeleteExpiredSearchSessionsAsync();
+    }
 
     // Reinicia únicamente la base desechable para que cada caso tenga datos controlados.
     public async Task Reset()

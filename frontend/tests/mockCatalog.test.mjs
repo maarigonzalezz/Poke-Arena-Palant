@@ -23,6 +23,7 @@ const require = createRequire(join(temp, 'package.json'));
 require(join(temp, 'mocks/mockImage.js')).createMockThumbnail = async () => 'data:image/webp;base64,c2ltdWxhZG8=';
 const api = require(join(temp, 'mocks/mockCatalogApi.js'));
 const { buildMockCards } = require(join(temp, 'mocks/catalogData.js'));
+const { CARD_TYPES, CARD_TYPE_PREFIXES } = require(join(temp, 'types/catalogs.js'));
 const data = new Map();
 globalThis.localStorage = {
   getItem: key => data.get(key) ?? null,
@@ -44,6 +45,21 @@ const locationInput = () => ({
   name: 'Ubicación de prueba', description: 'Solo simulación', maxCards: 4,
   energyMode: 'Fixed', extraEnergy: 3, effectType: 'None', effectParameters: {},
   image: new File(['image-a'], 'location.png', { type: 'image/png' }),
+});
+
+// Las opciones de pantalla y los códigos simulados parten del mismo catálogo.
+test('tipos compartidos generan los seis prefijos y aceptan efectos de ubicación', async () => {
+  const expected = { Fuego: 'FUE', Agua: 'AGU', Planta: 'PLA', Eléctrico: 'ELE', Psíquico: 'PSI', Lucha: 'LUC' };
+  assert.deepEqual(CARD_TYPES, Object.keys(expected));
+  assert.deepEqual(CARD_TYPE_PREFIXES, expected);
+  assert.ok(Object.isFrozen(CARD_TYPES) && Object.isFrozen(CARD_TYPE_PREFIXES));
+  for (const type of CARD_TYPES) {
+    const created = await api.mockCreateCard({ ...cardInput(), type, abilityCode: 'HAB-000' }, crypto.randomUUID());
+    assert.ok(created.code.startsWith(`PKA-${expected[type]}-`));
+    const found = await api.mockSearchCards({ code: created.code, type });
+    assert.equal(found.items.length, 1);
+    await api.mockCreateLocation({ ...locationInput(), effectType: 'TypeBonus', effectParameters: { type, power: 2 } }, crypto.randomUUID());
+  }
 });
 
 test('catálogo reproducible, HAB-000 y paginación sin duplicados', async () => {

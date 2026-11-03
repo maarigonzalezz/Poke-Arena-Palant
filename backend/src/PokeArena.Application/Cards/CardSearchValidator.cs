@@ -1,19 +1,10 @@
+using PokeArena.Domain.Catalogs;
 
 namespace PokeArena.Application.Cards;
 
 /// <summary>Comprueba límites, catálogos permitidos y coherencia de los filtros y la paginación.</summary>
 public static class CardSearchValidator
 {
-    private static readonly HashSet<string> Types =
-    [
-        "Fuego",
-        "Agua",
-        "Planta",
-        "Eléctrico",
-        "Psíquico",
-        "Lucha"
-    ];
-
     private static readonly HashSet<string> Rarities =
     [
         "Común",
@@ -101,7 +92,7 @@ public static class CardSearchValidator
         }
 
         if (query.Type is not null &&
-            !Types.Contains(query.Type))
+            !CardTypes.Contains(query.Type))
         {
             errors["type"] = "Tipo no permitido.";
         }

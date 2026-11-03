@@ -1,20 +1,10 @@
+using PokeArena.Domain.Catalogs;
 
 namespace PokeArena.Application.Locations;
 
 /// <summary>Comprueba capacidad, energía y parámetros del efecto antes de guardar.</summary>
 public static class LocationValidator
 {
-    /// <summary>Tipos de carta permitidos en parámetros de efectos.</summary>
-    private static readonly string[] AllowedCardTypes =
-    [
-        "Fuego",
-        "Agua",
-        "Planta",
-        "Eléctrico",
-        "Psíquico",
-        "Lucha"
-    ];
-
     /// <summary>Acumula errores para informar todas las reglas incumplidas en una respuesta.</summary>
     public static List<string> Validate(
         CreateLocationRequest request)
@@ -150,7 +140,7 @@ public static class LocationValidator
                     && affectedType.ValueKind != System.Text.Json.JsonValueKind.Null
                     && (affectedType.ValueKind
                             != System.Text.Json.JsonValueKind.String
-                        || !AllowedCardTypes.Contains(
+                        || !CardTypes.Contains(
                             affectedType.GetString())))
                 {
                     errors.Add(
@@ -199,7 +189,7 @@ public static class LocationValidator
     {
         return parameters.TryGetProperty(propertyName, out var value)
             && value.ValueKind == System.Text.Json.JsonValueKind.String
-            && AllowedCardTypes.Contains(value.GetString());
+            && CardTypes.Contains(value.GetString());
     }
 
     /// <summary>Rechaza números fraccionarios o fuera del rango permitido para el efecto.</summary>

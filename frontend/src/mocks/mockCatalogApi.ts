@@ -7,7 +7,7 @@ import type {
   CreateCardInput,
   CreateLocationInput,
 } from "../types/catalogs";
-import { CARD_TYPES, RARITIES, EFFECT_TYPES } from "../types/catalogs";
+import { CARD_TYPES, CARD_TYPE_PREFIXES, RARITIES, EFFECT_TYPES } from "../types/catalogs";
 import { createMockThumbnail } from "./mockImage";
 import {
   MOCK_ABILITIES,
@@ -405,16 +405,7 @@ async function createCard(
 
   const cards = readCards();
 
-  const prefixes: Record<Card["type"], string> = {
-    Fuego: "FUE",
-    Agua: "AGU",
-    Planta: "PLA",
-    Eléctrico: "ELE",
-    Psíquico: "PSI",
-    Lucha: "LUC",
-  };
-
-  const prefix = `PKA-${prefixes[input.type]}-`;
+  const prefix = `PKA-${CARD_TYPE_PREFIXES[input.type]}-`;
 
   // Calcula el consecutivo local solo entre cartas del mismo tipo.
   const nextNumber = Math.max(

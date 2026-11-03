@@ -1,74 +1,59 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PokeArena.Application.Common;
+using PokeArena.Infrastructure.Persistence;
 
 namespace PokeArena.Infrastructure;
 
-/// <summary>Serializa reintentos de la misma operación y confirma datos y respuesta juntos.</summary>
-public sealed class CatalogTransaction(NpgsqlDataSource dataSource)
+/// <summary>Confirma entidades, versiones y respuesta idempotente mediante una transacción de EF.</summary>
+public sealed class CatalogTransaction(PokeArenaDbContext db) : ICatalogTransaction
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    // La huella incluye los datos y los bytes de imagen para detectar cambios en un reintento.
-    public static string Fingerprint<T>(T data, ImageUpload image) =>
+    // La huella conserva el formato existente para aceptar reintentos anteriores a EF.
+    private static string Fingerprint(object data, ImageUpload image) =>
         Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         { data, imageHash = Convert.ToHexString(SHA256.HashData(image.Content)) }, Json)));
 
-    public async Task<T> RunAsync<T>(string actor, string key, string operation, string hash,
-        Func<NpgsqlConnection, NpgsqlTransaction, Task<T>> create, CancellationToken cancellationToken)
+    public async Task<T> RunAsync<T>(string actor, string key, string operation, object data, ImageUpload image,
+        Func<ICatalogWriteSession, Task<T>> create, CancellationToken cancellationToken)
     {
-        // Exige una clave válida para reconocer posibles reintentos.
-        if (string.IsNullOrWhiteSpace(key) || key.Length > 100)
-            throw new CatalogValidationException(new() { ["idempotencyKey"] = "Idempotency-Key es obligatorio y admite hasta 100 caracteres." });
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        // La restricción única hace esperar al segundo envío hasta confirmar o revertir el primero.
-        await using (var reserve = new NpgsqlCommand("""
-            INSERT INTO idempotency_requests(actor_id, operation, idempotency_key, request_hash, status)
-            VALUES (@actor, @operation, @key, @hash, 'Processing') ON CONFLICT DO NOTHING
-            """, connection, transaction))
+        var hash = Fingerprint(data, image);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
         {
-            Bind(reserve, actor, key, operation);
-            reserve.Parameters.AddWithValue("hash", hash);
-            await reserve.ExecuteNonQueryAsync(cancellationToken);
-        }
-        T result;
-        // La clave se identifica por usuario y operación para no mezclar solicitudes distintas.
-        await using (var read = new NpgsqlCommand("""
-            SELECT request_hash, response_body::text FROM idempotency_requests
-            WHERE actor_id=@actor AND operation=@operation AND idempotency_key=@key FOR UPDATE
-            """, connection, transaction))
-        {
-            Bind(read, actor, key, operation);
-            await using var reader = await read.ExecuteReaderAsync(cancellationToken);
-            await reader.ReadAsync(cancellationToken);
-            if (reader.GetString(0) != hash)
+            // ON CONFLICT reserva la clave sin abortar la transacción cuando llega un reintento.
+            await db.Database.ExecuteSqlAsync($"""
+                INSERT INTO idempotency_requests(actor_id, operation, idempotency_key, request_hash, status)
+                VALUES ({actor}, {operation}, {key}, {hash}, 'Processing') ON CONFLICT DO NOTHING
+                """, cancellationToken);
+            // El bloqueo serializa solicitudes con la misma clave; los valores son parámetros SQL.
+            var request = await db.IdempotencyRequests.FromSql($"""
+                SELECT * FROM idempotency_requests
+                WHERE actor_id={actor} AND operation={operation} AND idempotency_key={key} FOR UPDATE
+                """).SingleAsync(cancellationToken);
+            if (request.RequestHash != hash)
                 throw new CatalogConflictException("La clave de idempotencia ya fue utilizada con otros datos.");
-            // Una respuesta existente evita volver a ejecutar la creación.
-            if (!reader.IsDBNull(1)) return JsonSerializer.Deserialize<T>(reader.GetString(1), Json)!;
-        }
-        // Ejecuta el guardado específico de carta o ubicación dentro de esta transacción.
-        result = await create(connection, transaction);
-        await using (var finish = new NpgsqlCommand("""
-            UPDATE idempotency_requests SET status='Completed', response_status=201, response_body=@response::jsonb
-            WHERE actor_id=@actor AND operation=@operation AND idempotency_key=@key
-            """, connection, transaction))
-        {
-            Bind(finish, actor, key, operation);
-            finish.Parameters.AddWithValue("response", JsonSerializer.Serialize(result, Json));
-            await finish.ExecuteNonQueryAsync(cancellationToken);
-        }
-        // Confirma el registro y la respuesta de reintento dentro de la misma transacción SQL.
-        await transaction.CommitAsync(cancellationToken);
-        return result;
-    }
+            if (request.ResponseBody is not null)
+            {
+                var replay = JsonSerializer.Deserialize<T>(request.ResponseBody, Json)!;
+                await transaction.CommitAsync(cancellationToken);
+                return replay;
+            }
 
-    // Reutiliza los parámetros que identifican la solicitud sin concatenar valores en SQL.
-    private static void Bind(NpgsqlCommand command, string actor, string key, string operation)
-    {
-        command.Parameters.AddWithValue("actor", actor);
-        command.Parameters.AddWithValue("key", key);
-        command.Parameters.AddWithValue("operation", operation);
+            var result = await create(new PostgresCatalogWriteSession(db));
+            request.Status = "Completed";
+            request.ResponseStatus = 201;
+            request.ResponseBody = JsonSerializer.Serialize(result, Json);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        finally
+        {
+            // Evita reutilizar entidades de una operación fallida dentro del mismo contexto.
+            db.ChangeTracker.Clear();
+        }
     }
 }

@@ -1,16 +1,15 @@
 
 // Valores y contratos compartidos por las pantallas, los servicios y la simulación.
-export const CARD_TYPES = [
-  "Fuego",
-  "Agua",
-  "Planta",
-  "Eléctrico",
-  "Psíquico",
-  "Lucha",
-] as const;
+// Nombres y abreviaturas se declaran juntos para reutilizarlos en pantallas y mocks.
+export const CARD_TYPE_PREFIXES = Object.freeze({
+  Fuego: "FUE", Agua: "AGU", Planta: "PLA",
+  Eléctrico: "ELE", Psíquico: "PSI", Lucha: "LUC",
+} as const);
 
-// Deriva el tipo TypeScript del catálogo para evitar valores distintos en la interfaz.
-export type CardType = (typeof CARD_TYPES)[number];
+export type CardType = keyof typeof CARD_TYPE_PREFIXES;
+
+// Conserva el orden de las opciones y evita mantener una segunda lista manual.
+export const CARD_TYPES = Object.freeze(Object.keys(CARD_TYPE_PREFIXES) as CardType[]);
 
 export const RARITIES = [
   "Común",

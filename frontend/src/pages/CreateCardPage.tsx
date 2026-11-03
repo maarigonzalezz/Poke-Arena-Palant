@@ -45,8 +45,12 @@ export default function CreateCardPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
+  const [created, setCreated] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Bloquea también envíos consecutivos antes de que React actualice la pantalla.
+  const submitLockedRef = useRef(false);
 
-  // Conserva la clave en reintentos; se renueva al editar o confirmar la creación.
+  // Conserva la clave tras guardar y en reintentos; solo cambia para una nueva operación.
   const keyRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
@@ -86,6 +90,24 @@ export default function CreateCardPage() {
     keyRef.current = crypto.randomUUID();
   }
 
+  // Limpia la carta guardada antes de permitir una creación diferente.
+  function startNewCard() {
+    if (saving || !created) return;
+    setName("");
+    setCost("0");
+    setPower("0");
+    setType("Fuego");
+    setRarity("Común");
+    setAbilityCode("HAB-000");
+    setImage(null);
+    setPreview("");
+    setImageInfo("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    changed();
+    setCreated(false);
+    submitLockedRef.current = false;
+  }
+
   // Valida la nueva imagen antes de habilitar su previsualización.
   async function chooseImage(file?: File) {
     if (preview) URL.revokeObjectURL(preview);
@@ -113,8 +135,8 @@ export default function CreateCardPage() {
   // La validación local orienta al usuario; la API vuelve a validar antes de persistir.
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Evita envíos repetidos o anteriores a la carga del catálogo de habilidades.
-    if (saving || loadingAbilities) return;
+    // Una carta confirmada no se vuelve a enviar, ni siquiera mediante Enter.
+    if (submitLockedRef.current || saving || created || loadingAbilities || abilitiesError) return;
     setError("");
     setSuccess("");
 
@@ -164,6 +186,7 @@ export default function CreateCardPage() {
       image,
     };
 
+    submitLockedRef.current = true;
     setSaving(true);
 
     try {
@@ -179,8 +202,10 @@ export default function CreateCardPage() {
           : `La API confirmó la creación de la carta. ${JSON.stringify(result)}`
       );
 
-      keyRef.current = crypto.randomUUID();
+      setCreated(true);
     } catch (e) {
+      // Un fallo permite reintentar con la misma clave para evitar duplicados en el servidor.
+      submitLockedRef.current = false;
       setError(
         e instanceof Error
           ? e.message
@@ -208,6 +233,7 @@ export default function CreateCardPage() {
             Nombre *
             <input
               required
+              disabled={saving || created}
               value={name}
               onChange={(e) => {
                 changed();
@@ -220,6 +246,7 @@ export default function CreateCardPage() {
             Tipo *
             <select
               value={type}
+              disabled={saving || created}
               onChange={(e) => {
                 changed();
                 setType(e.target.value as CardType);
@@ -236,6 +263,7 @@ export default function CreateCardPage() {
             Rareza *
             <select
               value={rarity}
+              disabled={saving || created}
               onChange={(e) => {
                 changed();
                 setRarity(e.target.value as CardRarity);
@@ -251,6 +279,7 @@ export default function CreateCardPage() {
             Costo (0 a 10) *
             <input
               required type="number" min="0" max="10" step="1"
+              disabled={saving || created}
               value={cost}
               onChange={(e) => {
                 changed();
@@ -263,6 +292,7 @@ export default function CreateCardPage() {
             Poder (-20 a 20) *
             <input
               required type="number" min="-20" max="20" step="1"
+              disabled={saving || created}
               value={power}
               onChange={(e) => {
                 changed();
@@ -275,6 +305,7 @@ export default function CreateCardPage() {
             Habilidad *
             <select
               required
+              disabled={saving || created}
               value={abilityCode}
               onChange={(e) => {
                 changed();
@@ -333,6 +364,8 @@ export default function CreateCardPage() {
 
         <input
           aria-label="Imagen de la carta"
+          ref={fileInputRef}
+          disabled={saving || created}
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={(e) => {
@@ -355,9 +388,14 @@ export default function CreateCardPage() {
         {success && <p className="alert success" role="status">{success}</p>}
 
         <div className="actions">
-          <button disabled={saving || loadingAbilities || !!abilitiesError} type="submit">
-            {saving ? "Guardando..." : loadingAbilities ? "Cargando habilidades..." : "Crear carta"}
+          <button disabled={saving || created || loadingAbilities || !!abilitiesError} type="submit">
+            {saving ? "Guardando..." : created ? "Carta creada" : loadingAbilities ? "Cargando habilidades..." : "Crear carta"}
           </button>
+          {created && (
+            <button className="button-secondary" type="button" onClick={startNewCard}>
+              Crear otra carta
+            </button>
+          )}
         </div>
       </form>
     </section>

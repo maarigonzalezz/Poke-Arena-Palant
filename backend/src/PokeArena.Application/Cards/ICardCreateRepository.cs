@@ -2,9 +2,9 @@ using PokeArena.Application.Common;
 
 namespace PokeArena.Application.Cards;
 
-// Contrato de creación: el controlador lo consume y PostgreSQL lo implementa.
+// Persiste una carta ya validada dentro de la transacción del servicio.
 public interface ICardCreateRepository
 {
-    Task<CardCreateResult> CreateAsync(string actorId, CardCreateQuery query, ImageUpload image,
-        string idempotencyKey, CancellationToken cancellationToken = default);
+    Task<CardCreateResult> CreateAsync(CardCreateQuery query, AbilityItem ability, StoredImage image,
+        CancellationToken cancellationToken);
 }
