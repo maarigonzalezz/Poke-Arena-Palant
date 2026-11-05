@@ -8,7 +8,7 @@ namespace PokeArena.Api.Controllers;
 /// <summary>Consulta y creación del catálogo administrativo.</summary>
 [ApiController]
 [Route("api/cards")]
-[Authorize(Roles = "ContentAdmin")]
+[Authorize(Policy = "ContentAdmin")]
 public sealed class CardsController(CardService cards) : ControllerBase
 {
     // GET: valida filtros y entrega una página de la búsqueda del administrador.

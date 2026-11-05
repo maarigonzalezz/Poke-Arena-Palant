@@ -10,6 +10,7 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
 {
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<Player> Players => Set<Player>();
     internal DbSet<AbilityRecord> Abilities => Set<AbilityRecord>();
     internal DbSet<CardCodeSequence> CardCodeSequences => Set<CardCodeSequence>();
     internal DbSet<CardVersion> CardVersions => Set<CardVersion>();
@@ -22,6 +23,17 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     {
         // Los scripts de database/postgres conservan la autoridad sobre esquema, vistas y triggers.
         model.HasPostgresExtension("unaccent");
+        model.HasPostgresExtension("pg_trgm");
+        // La identidad externa es única; correo, rol y Elo no se utilizan para vincular cuentas.
+        var player = model.Entity<Player>();
+        player.ToTable("players");
+        player.HasKey(x => x.Id);
+        player.Property(x => x.Id).ValueGeneratedNever();
+        player.Property(x => x.IdentityProvider).HasMaxLength(20);
+        player.Property(x => x.ProviderSubject).HasMaxLength(255);
+        player.Property(x => x.Role).HasMaxLength(20);
+        player.HasIndex(x => new { x.IdentityProvider, x.ProviderSubject })
+            .IsUnique().HasDatabaseName("uq_players_identity");
         var ability = model.Entity<AbilityRecord>();
         ability.ToTable("abilities");
         ability.HasKey(x => x.Code);
@@ -37,6 +49,8 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         card.HasKey(x => x.Id);
         card.Property(x => x.Id).UseIdentityAlwaysColumn();
         card.Property(x => x.Name).HasMaxLength(120);
+        // PostgreSQL mantiene este campo técnico al insertar o cambiar el nombre.
+        card.Property<string>("SearchName").HasColumnType("text").ValueGeneratedOnAddOrUpdate();
         card.Property(x => x.Code).HasMaxLength(20);
         card.HasIndex(x => x.Code).IsUnique();
         // EF y el trigger SQL impiden modificar el código de una carta ya guardada.

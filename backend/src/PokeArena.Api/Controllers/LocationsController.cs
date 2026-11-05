@@ -8,7 +8,7 @@ namespace PokeArena.Api.Controllers;
 // Conecta POST /api/locations con el contrato de creación de Application.
 [ApiController]
 [Route("api/locations")]
-[Authorize(Roles = "ContentAdmin")]
+[Authorize(Policy = "ContentAdmin")]
 public sealed class LocationsController(LocationService locations) : ControllerBase
 {
     [HttpPost]

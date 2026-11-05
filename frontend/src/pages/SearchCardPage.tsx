@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   CARD_TYPES,
   RARITIES,
@@ -145,6 +145,9 @@ export default function SearchCardPage() {
   const [searchId, setSearchId] = useState<string | null>(null);
   const [nextPosition, setNextPosition] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [targetPage, setTargetPage] = useState("1");
+  const requestInFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
@@ -156,14 +159,16 @@ export default function SearchCardPage() {
     }));
   }
 
-  // Cada búsqueda inicia una sesión nueva; Cargar más conserva la sesión existente.
+  // Cada búsqueda inicia una sesión; la navegación conserva sus filtros y posiciones.
   async function search() {
+    if (requestInFlight.current) return;
     const problem = validate(filters);
     if (problem) {
       setError(problem);
       return;
     }
 
+    requestInFlight.current = true;
     setLoading(true);
     setError("");
     // Descarta resultados anteriores antes de iniciar otra búsqueda.
@@ -171,6 +176,8 @@ export default function SearchCardPage() {
     setCards([]);
     setSearchId(null);
     setNextPosition(null);
+    setPageIndex(0);
+    setTargetPage("1");
 
     try {
       const result = await searchCards(getFilters(filters));
@@ -183,30 +190,36 @@ export default function SearchCardPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error inesperado.");
     } finally {
+      requestInFlight.current = false;
       setLoading(false);
     }
   }
 
   // Continúa la sesión original; editar el formulario no altera sus resultados.
-  async function loadMore() {
-    if (!searchId || nextPosition === null || loading) return;
+  async function goToPage(index: number) {
+    if (!searchId || requestInFlight.current || !Number.isInteger(index)
+      || index < 0 || index >= Math.ceil(total / PAGE_SIZE)) return;
 
+    requestInFlight.current = true;
     setLoading(true);
     setError("");
 
     try {
       const result = await searchCards({
         searchId,
-        after: nextPosition,
+        after: index * PAGE_SIZE,
         pageSize: PAGE_SIZE,
       });
 
-      // Añade la página recibida sin reemplazar las cartas que ya se muestran.
-      setCards((previous) => [...previous, ...result.items]);
+      // Conserva solo una página para no acumular miles de cartas e imágenes en el DOM.
+      setCards(result.items);
+      setPageIndex(index);
+      setTargetPage(String(index + 1));
       setNextPosition(result.nextPosition);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al continuar.");
     } finally {
+      requestInFlight.current = false;
       setLoading(false);
     }
   }
@@ -218,6 +231,8 @@ export default function SearchCardPage() {
     setSearchId(null);
     setNextPosition(null);
     setTotal(0);
+    setPageIndex(0);
+    setTargetPage("1");
     setSearched(false);
     setError("");
   }
@@ -414,7 +429,7 @@ export default function SearchCardPage() {
         <div className="section-heading">
           <h2>Resultados</h2>
           {searched && (
-            <span>{cards.length} de {total} cartas</span>
+            <span>{total === 0 ? "0 cartas" : `${pageIndex * PAGE_SIZE + 1}–${pageIndex * PAGE_SIZE + cards.length} de ${total} cartas`}</span>
           )}
         </div>
 
@@ -466,16 +481,24 @@ export default function SearchCardPage() {
           ))}
         </div>
 
-        {/* La API devuelve null cuando no quedan páginas por consultar. */}
-        {nextPosition !== null && (
-          <div className="actions">
-            <button
-              disabled={loading}
-              onClick={() => void loadMore()}
-            >
-              {loading ? "Cargando..." : "Cargar más"}
+        {/* La posición estable permite retroceder o saltar sin descargar páginas intermedias. */}
+        {searched && total > 0 && (
+          <nav aria-label="Páginas del catálogo" className="actions catalog-pagination">
+            <button disabled={loading || pageIndex === 0} onClick={() => void goToPage(pageIndex - 1)}>
+              Anterior
             </button>
-          </div>
+            <span>Página {pageIndex + 1} de {Math.ceil(total / PAGE_SIZE)}</span>
+            <button disabled={loading || nextPosition === null} onClick={() => void goToPage(pageIndex + 1)}>
+              Siguiente
+            </button>
+            <form onSubmit={(event) => { event.preventDefault(); void goToPage(Number(targetPage) - 1); }}>
+              <label>Ir a página
+                <input type="number" min="1" max={Math.ceil(total / PAGE_SIZE)} step="1" required
+                  value={targetPage} disabled={loading} onChange={(event) => setTargetPage(event.target.value)} />
+              </label>
+              <button type="submit" disabled={loading}>Ir</button>
+            </form>
+          </nav>
         )}
       </section>
     </section>

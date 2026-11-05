@@ -71,6 +71,13 @@ input[type='file']::file-selector-button { border: 0; padding: 9px 12px; border-
 .actions button:hover:not(:disabled) { background: var(--accent-dark); box-shadow: 0 3px 10px #b91c3c20; }
 .actions .button-secondary { background: white; color: #59515e; border-color: #dcd8dc; }
 .actions .button-secondary:hover:not(:disabled) { background: #f2edf0; box-shadow: none; }
+/* Mantiene la paginación compacta y alineada sin estirar sus controles. */
+.catalog-pagination { align-items: center; gap: 8px; margin-top: 18px; }
+.catalog-pagination button { flex: 0 0 auto; min-height: 32px; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+.catalog-pagination > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.catalog-pagination form { display: flex; align-items: center; gap: 6px; margin: 0; }
+.catalog-pagination label { display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; white-space: nowrap; }
+.catalog-pagination input { width: 64px; min-height: 32px; padding: 5px 6px; border-radius: 6px; font-size: 12px; }
 .alert { margin-top: 18px; padding: 13px 16px; border-radius: 9px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
 .alert.error { background: #fff0f2; color: #a01435; border: 1px solid #f5cdd6; }
 .alert.success { background: #ecf9f2; color: #176041; border: 1px solid #bde4cd; }

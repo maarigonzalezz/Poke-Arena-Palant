@@ -7,7 +7,7 @@ namespace PokeArena.Api.Controllers;
 // Expone las habilidades activas que utiliza el formulario de creación de cartas.
 [ApiController]
 [Route("api/abilities")]
-[Authorize(Roles = "ContentAdmin")]
+[Authorize(Policy = "ContentAdmin")]
 public sealed class AbilitiesController(IAbilityRepository repository) : ControllerBase
 {
     [HttpGet]
