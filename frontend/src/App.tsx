@@ -7,10 +7,12 @@ import { IS_MOCK_MODE } from "./services/catalogApi";
 import { resetMockCatalog } from "./mocks/mockCatalogApi";
 import DevelopmentAuth from "./components/DevelopmentAuth";
 import Icon from "./components/Icon";
+import PlayerExperiencePage from "./pages/PlayerExperiencePage";
 import logo from "./assets/images (3).jpg";
 import "./App.css";
 
 type Page = "search" | "card" | "location";
+type Experience = "player" | "admin";
 
 const pages: Record<Page, string> = {
   search: "Buscar Carta",
@@ -20,6 +22,7 @@ const pages: Record<Page, string> = {
 
 /** Organiza las pantallas del catálogo y los controles del modo simulado. */
 export default function App() {
+  const [experience, setExperience] = useState<Experience>("player");
   // La navegación cambia la pantalla mediante estado local, sin cambiar la URL.
   const [page, setPage] = useState<Page>("search");
   // Cambiar la key remonta la pantalla para recargar datos al cambiar de sesión.
@@ -40,6 +43,10 @@ export default function App() {
     } catch {
       setResetError("No se pudieron restablecer los datos del navegador.");
     } finally { setResetting(false); }
+  }
+
+  if (experience === "player") {
+    return <PlayerExperiencePage onOpenAdmin={() => setExperience("admin")} />;
   }
 
   return (
@@ -81,9 +88,14 @@ export default function App() {
       <main className="main-content" id="main-content" tabIndex={-1}>
         <div className="topbar">
           <span>Poké-Arena <span className="breadcrumb-divider">/</span> <strong>{pages[page]}</strong></span>
-          <span className={`environment-badge ${IS_MOCK_MODE ? "is-simulation" : ""}`}>
-            <span aria-hidden="true" />{IS_MOCK_MODE ? "Simulación" : "Catálogo del juego"}
-          </span>
+          <div className="topbar-actions">
+            <button type="button" className="topbar-switch" onClick={() => setExperience("player")}>
+              Vista de jugador
+            </button>
+            <span className={`environment-badge ${IS_MOCK_MODE ? "is-simulation" : ""}`}>
+              <span aria-hidden="true" />{IS_MOCK_MODE ? "Simulación" : "Catálogo del juego"}
+            </span>
+          </div>
         </div>
         {/* El acceso con token manual se muestra solo durante desarrollo real. */}
         {!IS_MOCK_MODE && import.meta.env.DEV && (
