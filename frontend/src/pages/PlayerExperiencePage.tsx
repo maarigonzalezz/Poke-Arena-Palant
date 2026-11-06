@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CARD_TYPES } from "../types/catalogs";
 import logo from "../assets/images (3).jpg";
 import { TYPE_MARKS, type PlayerCatalogCard } from "./playerCatalogTypes";
@@ -11,7 +11,12 @@ const PAGE_SIZE = 12;
 
 interface PlayerExperiencePageProps {
   onOpenAdmin: () => void;
+  initialStage?: Stage;
+  onSignOut?: () => void;
   onSignIn?: () => Promise<void>;
+  loginButton?: ReactNode;
+  loginError?: string;
+  loginStatus?: string;
   onSaveDeck?: (name: string, cardCodes: string[]) => Promise<void>;
   cards?: PlayerCatalogCard[];
   cubeBalance?: number;
@@ -21,15 +26,20 @@ interface PlayerExperiencePageProps {
 /** Presenta las pantallas de jugador y recibe los puntos de integración de autenticación y datos. */
 export default function PlayerExperiencePage({
   onOpenAdmin,
+  initialStage = "login",
+  onSignOut,
   onSignIn,
+  loginButton,
+  loginError: externalLoginError,
+  loginStatus,
   onSaveDeck,
   cards = PLAYER_TEST_CARDS,
   cubeBalance = STARTING_CUBE_BALANCE,
   playerName = "Jugador",
 }: PlayerExperiencePageProps) {
-  const [stage, setStage] = useState<Stage>("login");
+  const [stage, setStage] = useState<Stage>(initialStage);
   const [section, setSection] = useState<Section>("catalog");
-  const [loginError, setLoginError] = useState("");
+  const [localLoginError, setLocalLoginError] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
   const [onlyOwned, setOnlyOwned] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
@@ -67,13 +77,13 @@ export default function PlayerExperiencePage({
   }
 
   async function signIn() {
-    setLoginError("");
+    setLocalLoginError("");
     setAuthenticating(true);
     try {
       await onSignIn?.();
       setStage("welcome");
     } catch {
-      setLoginError("No se pudo completar el inicio de sesión. Inténtalo de nuevo más tarde.");
+      setLocalLoginError("No se pudo completar el inicio de sesión. Inténtalo de nuevo más tarde.");
     } finally {
       setAuthenticating(false);
     }
@@ -108,12 +118,17 @@ export default function PlayerExperiencePage({
           <div className="login-card">
             <span className="eyebrow">Bienvenido a Poké-Arena</span>
             <h2>Inicia sesión</h2>
-            <p>Usa tu proveedor de identidad para continuar con tu cuenta de jugador.</p>
-            <button type="button" className="provider-button" disabled={authenticating} onClick={() => void signIn()}>
-              <span className="provider-symbol" aria-hidden="true">↗</span>
-              {authenticating ? "Conectando..." : "Continuar con proveedor"}
-            </button>
-            {loginError && <p className="alert error" role="alert">{loginError}</p>}
+            <p>Usa tu cuenta de Google para continuar con tu cuenta de jugador.</p>
+            {loginButton ?? (
+              <button type="button" className="provider-button" disabled={authenticating} onClick={() => void signIn()}>
+                <span className="provider-symbol" aria-hidden="true">↗</span>
+                {authenticating ? "Conectando..." : "Continuar con proveedor"}
+              </button>
+            )}
+            {loginStatus && <p className="login-status" role="status">{loginStatus}</p>}
+            {(externalLoginError || localLoginError) && (
+              <p className="alert error" role="alert">{externalLoginError || localLoginError}</p>
+            )}
             <button type="button" className="admin-entry" onClick={onOpenAdmin}>Ir al estudio administrativo</button>
           </div>
           <footer>© 2026 Poké-Arena <span>·</span> Hecho para grandes estrategias</footer>
@@ -216,9 +231,10 @@ export default function PlayerExperiencePage({
             <span className="account-avatar" aria-hidden="true">{playerName.slice(0, 1).toUpperCase()}</span>
             <span className="account-name">{playerName}</span>
             <button type="button" aria-label="Cerrar sesión" className="logout-button" onClick={() => {
-              setStage("login");
               setDeckCards([]);
               setDeckSaved(false);
+              if (onSignOut) onSignOut();
+              else setStage("login");
             }}>Salir</button>
           </div>
         </header>

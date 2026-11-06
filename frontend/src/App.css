@@ -198,6 +198,9 @@ input[type='file']::file-selector-button { border: 0; padding: 9px 12px; border-
 .login-card > p:not(.alert) { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0 0 30px; }
 .provider-button { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 52px; border: 0; border-radius: 9px; background: var(--accent); color: white; font-size: 13px; font-weight: 700; }
 .provider-button:hover { background: var(--accent-dark); box-shadow: 0 8px 20px #b91c3c28; }
+.google-sign-in-slot { display: flex; justify-content: center; width: 100%; min-height: 44px; margin-bottom: 18px; }
+.google-sign-in-slot.is-disabled { pointer-events: none; opacity: .6; }
+.login-status { margin: -16px 0 20px; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: center; }
 .provider-symbol { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; background: #ffffff25; font-size: 17px; }
 .login-separator { display: flex; align-items: center; gap: 14px; margin: 24px 0; color: #a7a0a9; font-size: 11px; }
 .login-separator::before, .login-separator::after { content: ""; height: 1px; flex: 1; background: var(--line); }

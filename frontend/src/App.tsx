@@ -22,7 +22,9 @@ const pages: Record<Page, string> = {
 
 /** Organiza las pantallas del catálogo y los controles del modo simulado. */
 export default function App() {
-  const [experience, setExperience] = useState<Experience>("player");
+  const [experience, setExperience] = useState<Experience>(
+    window.location.pathname === "/admin" ? "admin" : "player"
+  );
   // La navegación cambia la pantalla mediante estado local, sin cambiar la URL.
   const [page, setPage] = useState<Page>("search");
   // Cambiar la key remonta la pantalla para recargar datos al cambiar de sesión.

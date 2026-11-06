@@ -2,7 +2,14 @@ interface GoogleCredential { credential: string }
 
 export interface GoogleIdentity {
   initialize(options: { client_id: string; callback: (response: GoogleCredential) => void; auto_select: boolean }): void;
-  renderButton(parent: HTMLElement, options: { type: "standard"; text: "signin_with" }): void;
+  renderButton(parent: HTMLElement, options: {
+    type: "standard";
+    text: "signin_with";
+    theme: "outline";
+    size: "large";
+    shape: "rectangular";
+    width: number;
+  }): void;
   disableAutoSelect(): void;
 }
 
