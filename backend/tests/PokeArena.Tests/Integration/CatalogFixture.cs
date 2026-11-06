@@ -12,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using PokeArena.Infrastructure.Persistence;
+using PokeArena.Infrastructure.Authentication;
+using PokeArena.Application.Authentication;
 
 namespace PokeArena.Tests.Integration;
 
@@ -26,8 +28,11 @@ public sealed class IntegrationFactAttribute : FactAttribute
 public sealed class CatalogCollection : ICollectionFixture<CatalogFixture>;
 
 /// <summary>API real con JWT firmado, PostgreSQL desechable y archivos fuera del catálogo del usuario.</summary>
-public sealed class CatalogFixture : IAsyncLifetime
+public class CatalogFixture : IAsyncLifetime
 {
+    private readonly bool platformAuthentication;
+    public CatalogFixture() : this(false) { }
+    protected CatalogFixture(bool platformAuthentication) => this.platformAuthentication = platformAuthentication;
     private readonly string container = "pokearena-tests-" + Guid.NewGuid().ToString("N");
     private readonly string root = Path.Combine(Path.GetTempPath(), "pokearena-integration-" + Guid.NewGuid().ToString("N"));
     private readonly SymmetricSecurityKey key = new(RandomNumberGenerator.GetBytes(32));
@@ -56,12 +61,18 @@ public sealed class CatalogFixture : IAsyncLifetime
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/init.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/integrate.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/search_sessions.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/google_login.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/catalog_scale.sql")));
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string,string?>
-                { ["ConnectionStrings:Postgres"]=connection, ["Storage:Root"]=root }));
-                builder.ConfigureTestServices(services => services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    ["ConnectionStrings:Postgres"] = connection, ["Storage:Root"] = root,
+                    ["Authentication:Platform:SigningKeyBase64"] = Convert.ToBase64String(key.Key),
+                    ["Authentication:Google:ClientId"] = Environment.GetEnvironmentVariable("POKEARENA_GOOGLE_CLIENT_ID") ?? ""
+                }));
+                if (!platformAuthentication) builder.ConfigureTestServices(services => services.PostConfigure<JwtBearerOptions>(PlatformTokenOptions.Scheme, options =>
                 {
                     options.Authority=null; options.MetadataAddress=null!; options.ConfigurationManager=null!;
                     options.TokenValidationParameters=new TokenValidationParameters
@@ -101,10 +112,14 @@ public sealed class CatalogFixture : IAsyncLifetime
         return await scope.ServiceProvider.GetRequiredService<PokeArenaDbContext>().DeleteExpiredSearchSessionsAsync();
     }
 
+    // Las pruebas de autenticación usan las implementaciones registradas por la API.
+    public AsyncServiceScope CreateScope() => app!.Services.CreateAsyncScope();
+    public HttpClient AnonymousClient() => app!.CreateClient();
+
     // Reinicia únicamente la base desechable para que cada caso tenga datos controlados.
     public async Task Reset()
     {
-        await Execute("TRUNCATE cards, locations, card_search_sessions, idempotency_requests RESTART IDENTITY CASCADE; UPDATE card_code_sequences SET last_number=0;");
+        await Execute("TRUNCATE cards, locations, card_search_sessions, idempotency_requests, players RESTART IDENTITY CASCADE; UPDATE card_code_sequences SET last_number=0;");
     }
 
     public async Task DisposeAsync()

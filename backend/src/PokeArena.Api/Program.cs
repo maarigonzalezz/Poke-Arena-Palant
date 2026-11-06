@@ -1,7 +1,5 @@
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using PokeArena.Api;
 using PokeArena.Application.Common;
@@ -53,52 +51,8 @@ builder.Services.AddScoped<ICatalogTransaction, CatalogTransaction>();
 builder.Services.AddHostedService<SearchSessionCleanup>();
 builder.Services.AddScoped<IAbilityRepository, PostgresAbilityRepository>();
 
-// Valida JWT locales de desarrollo o los emitidos por el proveedor configurado.
-var authority =
-    builder.Configuration["Authentication:Authority"];
-
-var audience =
-    builder.Configuration["Authentication:Audience"];
-
-builder.Services
-    .AddAuthentication(
-        JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        if (!string.IsNullOrWhiteSpace(authority))
-        {
-            options.Authority = authority;
-        }
-
-        if (!string.IsNullOrWhiteSpace(audience)) options.Audience = audience;
-        // Conserva las claves de desarrollo que configura dotnet user-jwts.
-        options.MapInboundClaims = false;
-        options.TokenValidationParameters.ValidateIssuer = true;
-        options.TokenValidationParameters.ValidateAudience = true;
-        options.TokenValidationParameters.ValidateLifetime = true;
-        options.TokenValidationParameters.ValidateIssuerSigningKey = true;
-        // El claim role es el que consulta Authorize al exigir ContentAdmin.
-        options.TokenValidationParameters.RoleClaimType = "role";
-        options.TokenValidationParameters.NameClaimType = "sub";
-        options.Events = new JwtBearerEvents
-        {
-            // 401 indica una credencial ausente, inválida o vencida.
-            OnChallenge = context =>
-            {
-                context.HandleResponse();
-                context.Response.StatusCode = 401;
-                return context.Response.WriteAsJsonAsync(new { type="authentication_required", message="Debe iniciar sesión para continuar." });
-            },
-            // 403 indica que el usuario autenticado carece del rol requerido.
-            OnForbidden = context =>
-            {
-                context.Response.StatusCode = 403;
-                return context.Response.WriteAsJsonAsync(new { type="admin_required", message="Se requiere el rol ContentAdmin." });
-            }
-        };
-    });
-
-builder.Services.AddAuthorization();
+// Registra Google, emisión propia y autorización administrativa separada.
+builder.Services.AddPlatformAuthentication(builder.Environment);
 
 var app = builder.Build();
 
@@ -116,6 +70,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 // Primero se identifica al usuario y después se comprueba su permiso para la operación.
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -1,14 +1,16 @@
 using System.Diagnostics;
 using System.Net;
+using System.Text;
 using System.Text.Json.Nodes;
 using SkiaSharp;
+using Xunit.Abstractions;
 
 namespace PokeArena.Tests.Integration;
 
 // Ejercita HTTP, autorización y persistencia real con la base aislada de CatalogFixture.
 [Collection("catalog-integration")]
 [Trait("Category","Integration")]
-public sealed class CatalogApiTests(CatalogFixture fixture)
+public sealed class CatalogApiTests(CatalogFixture fixture, ITestOutputHelper output)
 {
     private static readonly byte[] CardImage=CatalogImageTests.ImageBytes();
     private static readonly byte[] LocationImage=CatalogImageTests.ImageBytes(800,600);
@@ -170,29 +172,66 @@ public sealed class CatalogApiTests(CatalogFixture fixture)
         await fixture.Reset(); using var client=fixture.Client();
         await fixture.Execute("""
             INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code)
-            SELECT 'PKA-' || types.prefix || '-' || LPAD(n::text,3,'0'), 'Carta ' || types.prefix || n,
+            SELECT 'PKA-' || types.prefix || '-' || LPAD(((n+5)/6)::text,GREATEST(3,LENGTH(((n+5)/6)::text)),'0'),
+                CASE WHEN n=10000 THEN 'Éclair Único' ELSE 'Carta ' || types.prefix || n END,
                 n%11, (n%41)-20, types.name, 'Común','HAB-000'
-            FROM generate_series(1,500) n CROSS JOIN
-                (VALUES ('FUE','Fuego'),('AGU','Agua'),('PLA','Planta'),('ELE','Eléctrico'),('PSI','Psíquico'),('LUC','Lucha')) types(prefix,name)
+            FROM generate_series(1,10000) n JOIN
+                (VALUES (0,'FUE','Fuego'),(1,'AGU','Agua'),(2,'PLA','Planta'),(3,'ELE','Eléctrico'),(4,'PSI','Psíquico'),(5,'LUC','Lucha')) types(slot,prefix,name)
+                ON types.slot=(n-1)%6;
+            ANALYZE cards;
             """);
+        // Tras una carga masiva, VACUUM vacía la lista pendiente del índice GIN.
+        await fixture.Execute("VACUUM (ANALYZE) cards");
         var timer=Stopwatch.StartNew();
         var first=await Json(await client.GetAsync("/api/cards?pageSize=100"));
         Assert.True(timer.Elapsed < TimeSpan.FromSeconds(10));
-        Assert.Equal(3000,first["totalCount"]!.GetValue<int>());
+        var firstMs=timer.Elapsed.TotalMilliseconds;
+        Assert.Equal(10000,first["totalCount"]!.GetValue<int>());
         await Json(await Post(client,"/api/cards",Card("Carta nueva"),CardImage),HttpStatusCode.Created);
         var seen=new HashSet<string>(); var page=first;
+        var maximumBytes=0; var maximumPageMs=0d; var pages=0;
         while(true)
         {
+            pages++;
             Assert.InRange(page["items"]!.AsArray().Count,1,100);
-            Assert.True(page.ToJsonString().Length < 200_000);
+            maximumBytes=Math.Max(maximumBytes,Encoding.UTF8.GetByteCount(page.ToJsonString()));
+            Assert.True(maximumBytes < 200_000);
             foreach(var item in page["items"]!.AsArray()) Assert.True(seen.Add(item!["code"]!.GetValue<string>()));
             if(page["nextPosition"] is null) break;
+            timer.Restart();
             page=await Json(await client.GetAsync($"/api/cards?searchId={first["searchId"]}&after={page["nextPosition"]}&pageSize=100"));
+            maximumPageMs=Math.Max(maximumPageMs,timer.Elapsed.TotalMilliseconds);
+            Assert.True(timer.Elapsed < TimeSpan.FromSeconds(10));
         }
-        Assert.Equal(3000,seen.Count);
-        Assert.DoesNotContain("PKA-FUE-501",seen);
+        Assert.Equal(10000,seen.Count);
+        Assert.Equal(100,pages);
+        Assert.DoesNotContain("PKA-FUE-1668",seen);
+        var back=await Json(await client.GetAsync($"/api/cards?searchId={first["searchId"]}&after=0&pageSize=100"));
+        Assert.Equal(first.ToJsonString(),back.ToJsonString());
+        var last=await Json(await client.GetAsync($"/api/cards?searchId={first["searchId"]}&after=9980&pageSize=20"));
+        Assert.Equal(20,last["items"]!.AsArray().Count); Assert.Null(last["nextPosition"]);
+        output.WriteLine($"10.000 cartas: primera página {firstMs:F1} ms; máximo siguientes {maximumPageMs:F1} ms; máximo JSON {maximumBytes} bytes; {pages} páginas sin duplicados.");
+
+        // El nombre parcial mantiene tildes, mayúsculas y filtros AND con el índice nuevo.
+        var filtered=await Json(await client.GetAsync("/api/cards?name=ECLAIR&minCost=0&maxCost=2&power=17&type=El%C3%A9ctrico&rarity=Com%C3%BAn&abilityCode=HAB-000"));
+        Assert.Equal("PKA-ELE-1667",Assert.Single(filtered["items"]!.AsArray())!["code"]!.GetValue<string>());
+        await using var planCommand=fixture.Database.CreateCommand("EXPLAIN (ANALYZE, FORMAT JSON) SELECT id FROM cards WHERE active AND search_name ILIKE '%eclair%'");
+        var plan=Convert.ToString(await planCommand.ExecuteScalarAsync())!;
+        Assert.Contains("idx_cards_search_name_trgm",plan);
+        output.WriteLine("El plan real de búsqueda por nombre utiliza idx_cards_search_name_trgm.");
+
         var fresh=await Json(await client.GetAsync("/api/cards"));
-        Assert.Equal(3001,fresh["totalCount"]!.GetValue<int>());
+        Assert.Equal(10001,fresh["totalCount"]!.GetValue<int>());
+        timer.Restart();
+        var simultaneous=await Task.WhenAll(Enumerable.Range(0,4).Select(async _ =>
+            await Json(await client.GetAsync("/api/cards?pageSize=100"))));
+        Assert.True(timer.Elapsed < TimeSpan.FromSeconds(10));
+        Assert.Equal(4,simultaneous.Select(x => x["searchId"]!.GetValue<Guid>()).Distinct().Count());
+        Assert.All(simultaneous, result => {
+            Assert.Equal(10001,result["totalCount"]!.GetValue<int>());
+            Assert.Equal(100,result["items"]!.AsArray().Count);
+        });
+        output.WriteLine($"Cuatro búsquedas completas concurrentes: {timer.Elapsed.TotalMilliseconds:F1} ms en total.");
         using var other=fixture.Client(actor:"other-admin");
         await Json(await other.GetAsync($"/api/cards?searchId={first["searchId"]}&after=100"),HttpStatusCode.NotFound);
         await fixture.Execute("UPDATE card_search_sessions SET expires_at=NOW()-INTERVAL '1 minute'");
@@ -261,6 +300,39 @@ public sealed class CatalogApiTests(CatalogFixture fixture)
         finally { await fixture.Execute("UPDATE abilities SET active=TRUE WHERE code='HAB-001'"); }
     }
 
+    // El bloqueo por tipo sigue evitando duplicados al pasar de tres a cuatro dígitos.
+    [IntegrationFact] public async Task Codes_expand_and_migration_preserves_imported_cards_and_normalized_names()
+    {
+        await fixture.Reset(); using var client=fixture.Client();
+        await fixture.Execute("UPDATE card_code_sequences SET last_number=998 WHERE card_type='Fuego'");
+        var original=await Json(await Post(client,"/api/cards",Card(),CardImage),HttpStatusCode.Created);
+        Assert.Equal("PKA-FUE-999",original["item"]!["code"]!.GetValue<string>());
+        var creations=await Task.WhenAll(Enumerable.Range(0,3).Select(async i =>
+            await Json(await Post(client,"/api/cards",Card("Paralela " + i),CardImage),HttpStatusCode.Created)));
+        Assert.Equal(new[]{"PKA-FUE-1000","PKA-FUE-1001","PKA-FUE-1002"},
+            creations.Select(x => x["item"]!["code"]!.GetValue<string>()).Order().ToArray());
+        await fixture.Execute("""
+            INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code)
+            VALUES ('PKA-FUE-10000','Importada Ágil',2,4,'Fuego','Común','HAB-000');
+            ALTER TABLE cards DISABLE TRIGGER card_search_name;
+            UPDATE cards SET search_name='';
+            ALTER TABLE cards ENABLE TRIGGER card_search_name;
+            """);
+        var migration=await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/catalog_scale.sql"));
+        await fixture.Execute(migration);
+        await fixture.Execute(migration);
+        Assert.Equal(5,await fixture.Count("SELECT COUNT(*) FROM cards"));
+        Assert.Equal(10000,await fixture.Count("SELECT last_number FROM card_code_sequences WHERE card_type='Fuego'"));
+        var found=await Json(await client.GetAsync("/api/cards?name=IMPORTADA%20AGIL"));
+        Assert.Equal("PKA-FUE-10000",Assert.Single(found["items"]!.AsArray())!["code"]!.GetValue<string>());
+        await fixture.Execute("UPDATE cards SET name='Importada Veloz' WHERE code='PKA-FUE-10000'");
+        Assert.Empty((await Json(await client.GetAsync("/api/cards?name=IMPORTADA%20AGIL")))["items"]!.AsArray());
+        Assert.Single((await Json(await client.GetAsync("/api/cards?name=importada%20veloz")))["items"]!.AsArray());
+        var next=await Json(await Post(client,"/api/cards",Card(),CardImage),HttpStatusCode.Created);
+        Assert.Equal("PKA-FUE-10001",next["item"]!["code"]!.GetValue<string>());
+        Assert.Single((await Json(await client.GetAsync("/api/cards?code=PKA-FUE-999")))["items"]!.AsArray());
+    }
+
     [IntegrationFact] public async Task Invalid_search_and_exhausted_codes_return_explicit_errors()
     {
         await fixture.Reset(); using var client=fixture.Client();
@@ -269,7 +341,7 @@ public sealed class CatalogApiTests(CatalogFixture fixture)
             var error=await Json(await client.GetAsync("/api/cards?"+query),HttpStatusCode.BadRequest);
             Assert.NotNull(error["errors"]);
         }
-        await fixture.Execute("UPDATE card_code_sequences SET last_number=999 WHERE card_type='Fuego'");
+        await fixture.Execute("UPDATE card_code_sequences SET last_number=2147483647 WHERE card_type='Fuego'");
         await Json(await Post(client,"/api/cards",Card(),CardImage),HttpStatusCode.Conflict);
         Assert.Equal(0,await fixture.Count("SELECT COUNT(*) FROM cards"));
     }

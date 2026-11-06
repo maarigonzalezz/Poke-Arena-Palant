@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using PokeArena.Application.Common;
+using PokeArena.Application.Authentication;
 
 namespace PokeArena.Api;
 
@@ -14,6 +15,7 @@ public sealed class CatalogExceptionFilter(ILogger<CatalogExceptionFilter> logge
         // Convierte excepciones conocidas en respuestas que el frontend puede interpretar.
         context.Result = context.Exception switch
         {
+            AuthenticationFailure ex => new ObjectResult(new { type = ex.Code, message = ex.Message }) { StatusCode = ex.StatusCode },
             CatalogValidationException ex when ex.Type is not null =>
                 new BadRequestObjectResult(new { type=ex.Type, message=ex.Message, errors=ex.Errors }),
             CatalogValidationException ex => new BadRequestObjectResult(new { message=ex.Message, errors=ex.Errors }),

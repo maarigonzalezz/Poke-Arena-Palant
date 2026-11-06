@@ -55,7 +55,8 @@ public sealed class PostgresCardSearchRepository(PokeArenaDbContext db) : ICardS
         {
             // Los comodines escritos por el usuario se buscan literalmente.
             var name = query.Name.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
-            cards = cards.Where(card => EF.Functions.ILike(EF.Functions.Unaccent(card.Name),
+            // La columna normalizada permite usar el índice trigram sin transformar cada fila.
+            cards = cards.Where(card => EF.Functions.ILike(EF.Property<string>(card, "SearchName"),
                 "%" + EF.Functions.Unaccent(name) + "%", "\\"));
         }
         if (query.Cost.HasValue) cards = cards.Where(card => card.Cost == query.Cost.Value);

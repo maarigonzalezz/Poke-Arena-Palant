@@ -20,16 +20,18 @@ internal sealed class PostgresCardCreateRepository(PokeArenaDbContext db) : ICar
         var sequence = await db.CardCodeSequences.FromSql($"""
             SELECT * FROM card_code_sequences WHERE card_type={query.Type} FOR UPDATE
             """).SingleOrDefaultAsync(cancellationToken);
-        if (sequence is null || sequence.LastNumber >= 999)
-            throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+        if (sequence is null)
+            throw new CatalogConflictException("No existe un contador para este tipo de carta.");
 
         // Reconcilia el contador con cartas importadas sin cargar el catálogo en memoria.
-        var pattern = $"^PKA-{prefix}-[0-9]{{3}}$";
+        var pattern = $"^PKA-{prefix}-[0-9]{{3,}}$";
         var lastExisting = await db.Cards.Where(x => x.CardType == query.Type && Regex.IsMatch(x.Code, pattern))
-            .Select(x => (int?)Convert.ToInt32(x.Code.Substring(x.Code.Length - 3))).MaxAsync(cancellationToken) ?? 0;
-        var number = Math.Max(sequence.LastNumber, lastExisting) + 1;
-        if (number > 999)
-            throw new CatalogConflictException("Se agotaron los códigos de tres dígitos para este tipo.");
+            .Select(x => (long?)Convert.ToInt64(x.Code.Substring(8))).MaxAsync(cancellationToken) ?? 0;
+        var lastNumber = Math.Max(sequence.LastNumber, lastExisting);
+        if (lastNumber >= int.MaxValue)
+            throw new CatalogConflictException("Se agotó el consecutivo disponible para este tipo.");
+        // D3 conserva 001 y permite continuar con 1000 sin cambiar códigos existentes.
+        var number = (int)lastNumber + 1;
         sequence.LastNumber = number;
 
         var card = new Card
