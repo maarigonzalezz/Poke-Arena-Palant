@@ -25,7 +25,7 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     internal DbSet<CardSearchSession> CardSearchSessions => Set<CardSearchSession>();
     internal DbSet<CardSearchEntry> CardSearchItems => Set<CardSearchEntry>();
     // + Relacionados a inventario del jugador
-    internal DbSet<PlayerCards> PlayerCards => Set<PlayerCards>();
+    internal DbSet<PlayerCard> PlayerCards => Set<PlayerCard>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -81,7 +81,7 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         location.Property(x => x.EffectParameters).HasColumnType("jsonb");
 
         // Inventario de cartas de jugadores
-        var playerCards = model.Entity<PlayerCards>(); // vincular entidad a la tabla
+        var playerCards = model.Entity<PlayerCard>(); // vincular entidad a la tabla
         playerCards.ToTable("player_cards");
         playerCards.HasKey(x => new { x.PlayerId, x.CardId });
 

@@ -11,14 +11,32 @@ namespace PokeArena.Api.Controllers;
 [Route("api/player/inventory")]
 public sealed class InventoryController(InventoryService inventory) : ControllerBase
 {
-    [HttpGet("owned")]
+    [HttpGet]
     public async Task<IActionResult> Consult(
         [FromQuery] PlayerProfileQuery query,
         CancellationToken cancellationToken
     ){
-        return Ok();
+        try
+        {
+            return Ok(await inventory.ConsultAsync(query, cancellationToken));
+        }
+        catch (KeyNotFoundException e)
+        {
+            return NotFound(e.Message);
+        }
+        catch (InventoryValidationException e)
+        {
+            return BadRequest(e.Message);
+        }
+        catch (InventoryConflictException e)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: e.Message,
+                detail: e.Source
+            );
+        }
     }
     // [HttpGet("collection")]
     // [HttpPost("collection/add")]
-    // [HttpPost("currency/add")]
 }

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PokeArena.Application.Common;
 using PokeArena.Infrastructure.Persistence;
 
-namespace PokeArena.Infrastructure;
+namespace PokeArena.Infrastructure.Catalog;
 
 /// <summary>Confirma entidades, versiones y respuesta idempotente mediante una transacción de EF.</summary>
 public sealed class CatalogTransaction(PokeArenaDbContext db) : ICatalogTransaction

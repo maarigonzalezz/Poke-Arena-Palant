@@ -21,6 +21,8 @@ services:
       - ./database/postgres/migrations/002_card_search_sessions.sql:/docker-entrypoint-initdb.d/zzz_card_search_sessions.sql:ro
       - ./database/postgres/migrations/003_google_login.sql:/docker-entrypoint-initdb.d/zzzz_google_login.sql:ro
       - ./database/postgres/migrations/004_catalog_scale.sql:/docker-entrypoint-initdb.d/zzzzz_catalog_scale.sql:ro
+      - ./database/postgres/migrations/005_player_inventory.sql:/docker-entrypoint-initdb.d/zzzzzz_player_inventory.sql:ro
+      #- ./database/postgres/migrations/006_test_cards.sql:/docker-entrypoint-initdb.d/zzzzzzz_test_cards.sql:ro
 
     healthcheck:
       test:
