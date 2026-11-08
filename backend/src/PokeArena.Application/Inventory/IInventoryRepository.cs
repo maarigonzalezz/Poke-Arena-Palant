@@ -3,9 +3,11 @@ namespace PokeArena.Application.Inventory;
 
 public interface IInventoryRepository
 {
-    /// <summary>Consultar el inventario de un jugador. Si no tiene inventario, genera uno automaticamente.</summary>
+    // Consultar nunca entrega premios; el identificador procede de la identidad autenticada.
     Task<PlayerProfileResult> ConsultAsync(
-        PlayerProfileQuery query,
+        Guid playerId,
         CancellationToken cancellationToken = default
     );
+    Task<InitialCollectionResult> EnsureInitialCollectionAsync(Guid playerId, CancellationToken cancellationToken = default);
+    Task<CubeHistoryResult> GetCubeHistoryAsync(Guid playerId, int after, CancellationToken cancellationToken = default);
 }

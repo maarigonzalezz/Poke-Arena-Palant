@@ -1,4 +1,5 @@
 using PokeArena.Domain.Entities;
+using PokeArena.Application.Inventory;
 
 namespace PokeArena.Application.Authentication;
 
@@ -8,7 +9,7 @@ public sealed record PlayerRegistration(Player Player, bool IsNewPlayer);
 public sealed record PlayerProfile(Guid Id, string? DisplayName, string? Email, string Role, int Elo, int Cubes);
 public sealed record AccessCredential(string AccessToken, string TokenType, int ExpiresIn, DateTime ExpiresAt);
 public sealed record LoginResult(string AccessToken, string TokenType, int ExpiresIn, DateTime ExpiresAt,
-    PlayerProfile Player, bool IsNewPlayer);
+    PlayerProfile Player, bool IsNewPlayer, InitialCollectionResult InitialCollection);
 
 public interface IGoogleIdentityVerifier
 {

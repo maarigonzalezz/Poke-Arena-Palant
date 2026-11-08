@@ -1,5 +1,5 @@
 using PokeArena.Application.Common;
-using PokeArena.Infrastructure;
+using PokeArena.Infrastructure.Catalog;
 using SkiaSharp;
 
 namespace PokeArena.Tests;
