@@ -161,16 +161,32 @@ public sealed class AuthenticationTests(AuthenticationFixture fixture)
         Assert.Single(sessions, x => x.IsNewPlayer);
         Assert.Single(sessions.Select(x => x.Player.Id).Distinct());
         Assert.All(sessions, x => { Assert.Equal("Player", x.Player.Role); Assert.Equal(0, x.Player.Elo); });
+        // El catálogo vacío conserva la cuenta y comunica la entrega pendiente en el login real.
+        Assert.All(sessions, x => { Assert.Equal("PendingCatalog", x.InitialCollection.Status); Assert.Equal(0, x.Player.Cubes); });
         client.DefaultRequestHeaders.Authorization = new("Bearer", sessions[0].AccessToken);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/cards")).StatusCode);
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM players"));
         await fixture.Execute($"UPDATE players SET elo=125 WHERE id='{sessions[0].Player.Id}'");
+        await fixture.Execute("""
+            INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code)
+            SELECT 'LIVE-'||n, 'Carta '||n, 1, 1, 'Fuego', 'Común', 'HAB-000'
+            FROM generate_series(1,15) n;
+            """);
         var repeat = await client.PostAsJsonAsync("/api/auth/google", body);
         Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
         var repeated = await repeat.Content.ReadFromJsonAsync<LoginResult>();
         Assert.False(repeated!.IsNewPlayer); Assert.Equal(125, repeated.Player.Elo);
         Assert.Equal(sessions[0].Player.Id, repeated.Player.Id);
+        Assert.True(repeated.InitialCollection.Completed); Assert.Equal(1000, repeated.Player.Cubes);
+        Assert.Equal(15, await fixture.Count("SELECT COUNT(*) FROM player_cards"));
+        Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));
+        // Los ingresos posteriores conservan el saldo gastado y no vuelven a entregar cartas.
+        await fixture.Execute($"UPDATE players SET cubes=0 WHERE id='{repeated.Player.Id}'");
+        var afterSpending = await client.PostAsJsonAsync("/api/auth/google", body);
+        Assert.Equal(HttpStatusCode.OK, afterSpending.StatusCode);
+        Assert.Equal(0, (await afterSpending.Content.ReadFromJsonAsync<LoginResult>())!.Player.Cubes);
+        Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));
         client.DefaultRequestHeaders.Authorization = new("Bearer", body.idToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
     }

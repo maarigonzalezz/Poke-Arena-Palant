@@ -1,14 +1,17 @@
 
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+
 using PokeArena.Api;
+
 using PokeArena.Application.Common;
-using PokeArena.Infrastructure;
-using PokeArena.Infrastructure.Persistence;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Locations;
-using PokeArena.Infrastructure.Cards;
 using PokeArena.Application.Inventory;
+
+using PokeArena.Infrastructure.Catalog;
+using PokeArena.Infrastructure.Persistence;
+using PokeArena.Infrastructure.Cards;
 using PokeArena.Infrastructure.Inventory;
 
 // Punto de entrada: conecta HTTP, autenticación y repositorios del catálogo.

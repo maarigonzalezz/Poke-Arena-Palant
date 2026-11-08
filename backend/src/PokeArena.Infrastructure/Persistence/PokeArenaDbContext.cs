@@ -25,7 +25,8 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     internal DbSet<CardSearchSession> CardSearchSessions => Set<CardSearchSession>();
     internal DbSet<CardSearchEntry> CardSearchItems => Set<CardSearchEntry>();
     // + Relacionados a inventario del jugador
-    internal DbSet<PlayerCards> PlayerCards => Set<PlayerCards>();
+    internal DbSet<PlayerCard> PlayerCards => Set<PlayerCard>();
+    internal DbSet<PlayerCubeMovement> PlayerCubeMovements => Set<PlayerCubeMovement>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -81,9 +82,19 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         location.Property(x => x.EffectParameters).HasColumnType("jsonb");
 
         // Inventario de cartas de jugadores
-        var playerCards = model.Entity<PlayerCards>(); // vincular entidad a la tabla
+        var playerCards = model.Entity<PlayerCard>(); // vincular entidad a la tabla
         playerCards.ToTable("player_cards");
         playerCards.HasKey(x => new { x.PlayerId, x.CardId });
+
+        // La secuencia ordena el historial y la restricción impide acreditar dos premios iniciales.
+        var movement = model.Entity<PlayerCubeMovement>();
+        movement.ToTable("player_cube_movements");
+        movement.HasKey(x => new { x.PlayerId, x.Sequence });
+        movement.Property(x => x.Reason).HasMaxLength(50);
+        movement.Property(x => x.CreatedAt).HasDefaultValueSql("NOW()");
+        movement.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
+        movement.HasIndex(x => x.PlayerId).IsUnique().HasFilter("reason = 'InitialCollection'")
+            .HasDatabaseName("uq_player_initial_collection");
 
         var sequence = model.Entity<CardCodeSequence>();
         sequence.ToTable("card_code_sequences");

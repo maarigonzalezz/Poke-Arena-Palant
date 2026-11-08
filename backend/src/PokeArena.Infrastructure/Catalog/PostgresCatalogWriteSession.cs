@@ -6,7 +6,7 @@ using PokeArena.Infrastructure.Cards;
 using PokeArena.Infrastructure.Locations;
 using PokeArena.Infrastructure.Persistence;
 
-namespace PokeArena.Infrastructure;
+namespace PokeArena.Infrastructure.Catalog;
 
 /// <summary>Comparte el mismo DbContext y su transacción entre los repositorios de escritura.</summary>
 internal sealed class PostgresCatalogWriteSession(PokeArenaDbContext db) : ICatalogWriteSession
