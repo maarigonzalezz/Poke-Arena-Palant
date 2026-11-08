@@ -20,7 +20,7 @@ public sealed class PostgresPlayerRepository(PokeArenaDbContext db) : IPlayerRep
             player = new Player
             {
                 Id = Guid.NewGuid(), IdentityProvider = identity.Provider, ProviderSubject = identity.Subject,
-                Email = identity.Email, DisplayName = identity.DisplayName, Role = "Player", Elo = 0,
+                Email = identity.Email, DisplayName = identity.DisplayName, Role = "Player", Elo = 0, Cubes = 0,
                 Active = true, CreatedAt = DateTime.UtcNow, LastLoginAt = DateTime.UtcNow
             };
             db.Players.Add(player);

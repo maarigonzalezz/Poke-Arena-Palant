@@ -1,7 +1,7 @@
 using PokeArena.Application.Common;
 using SkiaSharp;
 
-namespace PokeArena.Infrastructure;
+namespace PokeArena.Infrastructure.Catalog;
 
 /// <summary>Valida el contenido y guarda original y miniatura en una carpeta única.</summary>
 public sealed class CatalogImageStore(string rootDirectory) : IImageStore

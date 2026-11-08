@@ -1,14 +1,15 @@
 using PokeArena.Domain.Entities;
+using PokeArena.Application.Inventory;
 
 namespace PokeArena.Application.Authentication;
 
 // Este resultado solo puede proceder del adaptador que verifica la firma del proveedor.
 public sealed record ExternalIdentity(string Provider, string Subject, string? Email, string? DisplayName);
 public sealed record PlayerRegistration(Player Player, bool IsNewPlayer);
-public sealed record PlayerProfile(Guid Id, string? DisplayName, string? Email, string Role, int Elo);
+public sealed record PlayerProfile(Guid Id, string? DisplayName, string? Email, string Role, int Elo, int Cubes);
 public sealed record AccessCredential(string AccessToken, string TokenType, int ExpiresIn, DateTime ExpiresAt);
 public sealed record LoginResult(string AccessToken, string TokenType, int ExpiresIn, DateTime ExpiresAt,
-    PlayerProfile Player, bool IsNewPlayer);
+    PlayerProfile Player, bool IsNewPlayer, InitialCollectionResult InitialCollection);
 
 public interface IGoogleIdentityVerifier
 {
