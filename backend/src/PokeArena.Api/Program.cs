@@ -8,6 +8,8 @@ using PokeArena.Infrastructure.Persistence;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Locations;
 using PokeArena.Infrastructure.Cards;
+using PokeArena.Application.Inventory;
+using PokeArena.Infrastructure.Inventory;
 
 // Punto de entrada: conecta HTTP, autenticación y repositorios del catálogo.
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +52,12 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<ICatalogTransaction, CatalogTransaction>();
 builder.Services.AddHostedService<SearchSessionCleanup>();
 builder.Services.AddScoped<IAbilityRepository, PostgresAbilityRepository>();
+
+// El validador no conserva estado y puede compartirse entre solicitudes.
+builder.Services.AddSingleton<InventoryValidationService>();
+// Servicio y repositorio usan el DbContext de la misma solicitud HTTP.
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<IInventoryRepository, PostgresInventoryRepository>();
 
 // Registra Google, emisión propia y autorización administrativa separada.
 builder.Services.AddPlatformAuthentication(builder.Environment);
