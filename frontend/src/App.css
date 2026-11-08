@@ -328,6 +328,7 @@ input[type='file']::file-selector-button { border: 0; padding: 9px 12px; border-
 .player-card-stats small, .player-card-stats strong { display: block; }
 .player-card-stats small { color: #938b94; font-size: 7px; letter-spacing: .8px; }
 .player-card-stats strong { margin-top: 3px; font-size: 12px; }
+.player-card-stats + .deck-toggle { margin-top: 9px; }
 .owned-status { display: flex; align-items: center; gap: 6px; margin: 9px 0; color: #8a838d; font-size: 9px; }
 .owned-status.is-owned { color: #387550; }
 .owned-status span { font-size: 12px; font-weight: 750; }
@@ -335,6 +336,8 @@ input[type='file']::file-selector-button { border: 0; padding: 9px 12px; border-
 .deck-toggle:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: #fff8fa; }
 .deck-toggle.is-selected { border-color: #bb8b9b; background: #fbf1f4; color: var(--accent); }
 .deck-toggle:disabled { opacity: .5; cursor: not-allowed; }
+.cart-checkout { margin: 22px 0; }
+.cart-checkout > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .player-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding: 15px 0; color: var(--muted); font-size: 10px; }
 .player-pagination > div { display: flex; align-items: center; gap: 12px; }
 .player-pagination button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: white; color: #514955; font-size: 10px; }

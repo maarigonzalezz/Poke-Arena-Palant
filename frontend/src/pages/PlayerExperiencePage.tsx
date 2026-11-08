@@ -1,11 +1,12 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useReducer, useState, type ReactNode } from "react";
 import { CARD_TYPES } from "../types/catalogs";
 import logo from "../assets/images (3).jpg";
 import { TYPE_MARKS, type PlayerCatalogCard } from "./playerCatalogTypes";
 import { PLAYER_TEST_CARDS, STARTING_CUBE_BALANCE } from "./playerTestData";
+import { EMPTY_PLAYER_CART, playerCartReducer } from "./playerCart";
 
 type Stage = "login" | "welcome" | "game";
-type Section = "catalog" | "collection" | "decks";
+type Section = "catalog" | "collection" | "decks" | "cart";
 
 const PAGE_SIZE = 12;
 
@@ -49,17 +50,33 @@ export default function PlayerExperiencePage({
   const [deckName, setDeckName] = useState("Mi primer mazo");
   const [deckSaved, setDeckSaved] = useState(false);
   const [deckError, setDeckError] = useState("");
+  const [cart, dispatchCart] = useReducer(playerCartReducer, EMPTY_PLAYER_CART);
+  const [purchaseMessage, setPurchaseMessage] = useState("");
+  const collectionCards = useMemo(() => cards.map(card => cart.purchasedCodes.includes(card.code)
+    ? { ...card, quantity: Math.max(1, card.quantity) } : card), [cards, cart.purchasedCodes]);
+  const cartCards = collectionCards.filter(card => card.quantity === 0 && cart.cartCodes.includes(card.code));
+
+  function toggleCartCard(code: string) {
+    setPurchaseMessage("");
+    dispatchCart({ type: "toggle", code, cards });
+  }
+
+  function purchaseCart() {
+    if (!cartCards.length) return;
+    dispatchCart({ type: "purchase", cards });
+    setPurchaseMessage(`Compra simulada completada: ${cartCards.length} ${cartCards.length === 1 ? "carta agregada" : "cartas agregadas"} a tu colección.`);
+  }
 
   const ownedCards = useMemo(
-    () => cards.filter((card) => card.quantity > 0),
-    [cards],
+    () => collectionCards.filter((card) => card.quantity > 0),
+    [collectionCards],
   );
-  const filteredCards = useMemo(() => cards.filter((card) => {
+  const filteredCards = useMemo(() => collectionCards.filter((card) => {
     const matchesType = !typeFilter || card.type === typeFilter;
     const matchesCost = costFilter === "" || card.cost === Number(costFilter);
     const matchesOwnership = !onlyOwned || card.quantity > 0;
     return matchesType && matchesCost && matchesOwnership;
-  }), [cards, costFilter, onlyOwned, typeFilter]);
+  }), [collectionCards, costFilter, onlyOwned, typeFilter]);
   const pageCount = Math.ceil(filteredCards.length / PAGE_SIZE);
   const visibleCards = filteredCards.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -189,6 +206,7 @@ export default function PlayerExperiencePage({
     catalog: "Explorar catálogo",
     collection: "Mi colección",
     decks: "Constructor de mazos",
+    cart: "Pokecarrito",
   };
 
   return (
@@ -204,12 +222,14 @@ export default function PlayerExperiencePage({
             ["catalog", "Catálogo", "⌕"],
             ["collection", "Mi colección", "▤"],
             ["decks", "Mis mazos", "▧"],
+            ["cart", "Pokecarrito", "🛒"],
           ] as [Section, string, string][]).map(([key, label, mark]) => (
             <button key={key} type="button" className={section === key ? "nav-active" : ""}
               onClick={() => setSection(key)} aria-current={section === key ? "page" : undefined}>
               <span className="player-nav-mark" aria-hidden="true">{mark}</span>
               <span>{label}</span>
               {key === "decks" && <span className="nav-count">{deckCards.length}/12</span>}
+              {key === "cart" && <span className="nav-count">{cartCards.length}</span>}
             </button>
           ))}
         </nav>
@@ -231,6 +251,8 @@ export default function PlayerExperiencePage({
             <span className="account-avatar" aria-hidden="true">{playerName.slice(0, 1).toUpperCase()}</span>
             <span className="account-name">{playerName}</span>
             <button type="button" aria-label="Cerrar sesión" className="logout-button" onClick={() => {
+              dispatchCart({ type: "reset" });
+              setPurchaseMessage("");
               setDeckCards([]);
               setDeckSaved(false);
               if (onSignOut) onSignOut();
@@ -268,9 +290,12 @@ export default function PlayerExperiencePage({
             <div className="player-card-grid">
               {visibleCards.map((card) => <PlayerCard key={card.code} card={card}
                 quantity={card.quantity}
-                selected={deckCards.includes(card.code)}
-                canAdd={deckCards.length < 12 || deckCards.includes(card.code)}
-                onDeckToggle={() => toggleDeckCard(card.code)} />)}
+                catalogAction={{
+                  label: card.quantity > 0 ? "En tu colección" : cart.cartCodes.includes(card.code) ? "Quitar del pokecarrito" : "Agregar a pokecarrito",
+                  disabled: card.quantity > 0,
+                  selected: cart.cartCodes.includes(card.code),
+                  onClick: () => toggleCartCard(card.code),
+                }} />)}
             </div>
             {visibleCards.length === 0 && <div className="empty-state"><span className="empty-icon">⌕</span>
               <h3>No encontramos cartas</h3>
@@ -283,6 +308,32 @@ export default function PlayerExperiencePage({
                 <strong>Página {page + 1} de {pageCount}</strong>
                 <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)}>Siguiente</button>
               </div>
+            </div>}
+          </section>
+        )}
+
+        {section === "cart" && (
+          <section className="player-page">
+            <header className="player-page-heading">
+              <div><p className="eyebrow">Tus próximas cartas</p><h1>Pokecarrito</h1>
+                <p>Revisa tus cartas y quita las que no quieras antes de comprarlas.</p></div>
+              <div className="owned-summary"><span aria-hidden="true">🛒</span><div><strong>{cartCards.length}</strong><small>cartas en el pokecarrito</small></div></div>
+            </header>
+            <div className="panel cart-checkout">
+              <p>Compra de demostración: las cartas se agregan a tu colección durante esta sesión. No se realizan cobros ni se descuentan cubos. Los cambios se pierden al salir o recargar.</p>
+              <div className="deck-actions">
+                <button type="button" className="player-primary" onClick={() => setSection("catalog")}>Seguir explorando</button>
+                <button type="button" className="player-primary" disabled={cartCards.length === 0}
+                  onClick={purchaseCart}>Comprar cartas ({cartCards.length})</button>
+              </div>
+            </div>
+            {purchaseMessage && <p className="alert success" role="status">{purchaseMessage}</p>}
+            <div className="player-card-grid">
+              {cartCards.map(card => <PlayerCard key={card.code} card={card} quantity={card.quantity}
+                catalogAction={{ label: "Quitar del pokecarrito", selected: true, onClick: () => toggleCartCard(card.code) }} />)}
+            </div>
+            {cartCards.length === 0 && <div className="empty-state"><span className="empty-icon" aria-hidden="true">🛒</span>
+              <h3>Tu pokecarrito está vacío</h3><p>Explora el catálogo para agregar cartas que aún no tienes.</p>
             </div>}
           </section>
         )}
@@ -357,12 +408,13 @@ function MiniCard({ card }: { card: PlayerCatalogCard }) {
   </div>;
 }
 
-function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle }: {
+function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle, catalogAction }: {
   card: PlayerCatalogCard;
   quantity: number;
-  selected: boolean;
-  canAdd: boolean;
-  onDeckToggle: () => void;
+  selected?: boolean;
+  canAdd?: boolean;
+  onDeckToggle?: () => void;
+  catalogAction?: { label: string; disabled?: boolean; selected?: boolean; onClick: () => void };
 }) {
   return (
     <article className={`player-card type-${card.type.toLowerCase()}`} data-type={card.type}>
@@ -377,13 +429,13 @@ function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle }: {
         <div className="player-card-title"><h3>{card.name}</h3><span className={`rarity-tag rarity-${card.rarity.toLowerCase().replace(" ", "-")}`}>{card.rarity}</span></div>
         <p className="player-card-ability">{card.abilityName}</p>
         <div className="player-card-stats"><span><small>COSTO</small><strong>◈ {card.cost}</strong></span><span><small>PODER</small><strong>✦ {card.power}</strong></span></div>
-        <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
+        {!catalogAction && <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
           <span aria-hidden="true">{quantity ? "✓" : "○"}</span>
           {quantity ? `En tu colección · ${quantity} copia` : "Aún no la tienes"}
-        </div>
-        <button type="button" className={`deck-toggle ${selected ? "is-selected" : ""}`}
-          disabled={!quantity || (!selected && !canAdd)} onClick={onDeckToggle}>
-          {selected ? "Quitar del mazo" : canAdd ? "＋ Agregar al mazo" : "Mazo completo"}
+        </div>}
+        <button type="button" className={`deck-toggle ${(catalogAction ? catalogAction.selected : selected) ? "is-selected" : ""}`}
+          disabled={catalogAction ? catalogAction.disabled : !quantity || (!selected && !canAdd)} onClick={catalogAction ? catalogAction.onClick : onDeckToggle}>
+          {catalogAction ? catalogAction.label : selected ? "Quitar del mazo" : canAdd ? "＋ Agregar al mazo" : "Mazo completo"}
         </button>
       </div>
     </article>

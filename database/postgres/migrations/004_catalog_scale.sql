@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_cards_search_name_trgm
 
 -- El contador INTEGER ya admite más de 999; se considera el sufijo completo.
 UPDATE card_code_sequences s SET last_number = GREATEST(s.last_number,
-    COALESCE((SELECT LEAST(MAX(substring(c.code FROM 9)::bigint), 2147483647)::integer
+    COALESCE((SELECT LEAST(COALESCE(MAX(substring(c.code FROM 9)::bigint), 0), 2147483647)::integer
               FROM cards c WHERE c.card_type = s.card_type
               AND c.code ~ '^PKA-(FUE|AGU|PLA|ELE|PSI|LUC)-[0-9]{3,}$'), 0));
 

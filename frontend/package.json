@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:mock": "vite --mode mock",
     "test:mocks": "node --test tests/mockCatalog.test.mjs",
+    "test:cart": "node --test tests/playerCart.test.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
