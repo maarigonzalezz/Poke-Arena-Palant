@@ -8,23 +8,31 @@ namespace PokeArena.Infrastructure.Persistence;
 /// <summary>Mapea el esquema PostgreSQL existente y comparte una unidad de trabajo por solicitud.</summary>
 public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> options) : DbContext(options)
 {
+    // Conjunto de tablas principales
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Player> Players => Set<Player>();
+    // Conjunto de tablas auxiliares
+    // + Habilidades
     internal DbSet<AbilityRecord> Abilities => Set<AbilityRecord>();
+    // + Relacionados a cartas
     internal DbSet<CardCodeSequence> CardCodeSequences => Set<CardCodeSequence>();
     internal DbSet<CardVersion> CardVersions => Set<CardVersion>();
+    // + Relacionaodas a ubicaicones
     internal DbSet<LocationVersion> LocationVersions => Set<LocationVersion>();
+    // + Relaciones a sesiones de busqueda
     internal DbSet<IdempotencyRequest> IdempotencyRequests => Set<IdempotencyRequest>();
     internal DbSet<CardSearchSession> CardSearchSessions => Set<CardSearchSession>();
     internal DbSet<CardSearchEntry> CardSearchItems => Set<CardSearchEntry>();
+    // + Relacionados a inventario del jugador
+    internal DbSet<PlayerCards> PlayerCards => Set<PlayerCards>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
         // Los scripts de database/postgres conservan la autoridad sobre esquema, vistas y triggers.
         model.HasPostgresExtension("unaccent");
         model.HasPostgresExtension("pg_trgm");
-        // La identidad externa es única; correo, rol y Elo no se utilizan para vincular cuentas.
+        // La identidad externa es única; correo, rol, Elo y Cubos no se utilizan para vincular cuentas.
         var player = model.Entity<Player>();
         player.ToTable("players");
         player.HasKey(x => x.Id);
@@ -34,6 +42,7 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         player.Property(x => x.Role).HasMaxLength(20);
         player.HasIndex(x => new { x.IdentityProvider, x.ProviderSubject })
             .IsUnique().HasDatabaseName("uq_players_identity");
+        
         var ability = model.Entity<AbilityRecord>();
         ability.ToTable("abilities");
         ability.HasKey(x => x.Code);
@@ -70,6 +79,11 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         location.Property(x => x.EffectType).HasMaxLength(50);
         location.Property(x => x.ImageStatus).HasMaxLength(20);
         location.Property(x => x.EffectParameters).HasColumnType("jsonb");
+
+        // Inventario de cartas de jugadores
+        var playerCards = model.Entity<PlayerCards>(); // vincular entidad a la tabla
+        playerCards.ToTable("player_cards");
+        playerCards.HasKey(x => new { x.PlayerId, x.CardId });
 
         var sequence = model.Entity<CardCodeSequence>();
         sequence.ToTable("card_code_sequences");

@@ -32,5 +32,5 @@ public sealed class LoginService(IGoogleIdentityVerifier google, IPlayerReposito
     }
 
     private static PlayerProfile Profile(Domain.Entities.Player player) =>
-        new(player.Id, player.DisplayName, player.Email, player.Role, player.Elo);
+        new(player.Id, player.DisplayName, player.Email, player.Role, player.Elo, player.Cubes);
 }

@@ -10,6 +10,7 @@ public sealed class Player
     public string? DisplayName { get; set; }
     public string Role { get; set; } = "Player";
     public int Elo { get; set; }
+    public int Cubes {get; set; }
     public bool Active { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime LastLoginAt { get; set; }
