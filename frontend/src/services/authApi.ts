@@ -6,6 +6,7 @@ export interface PlayerProfile {
   email: string | null;
   role: string;
   elo: number;
+  cubes: number;
 }
 
 export interface LoginResult {

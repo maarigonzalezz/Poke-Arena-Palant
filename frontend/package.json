@@ -8,6 +8,7 @@
     "dev:mock": "vite --mode mock",
     "test:mocks": "node --test tests/mockCatalog.test.mjs",
     "test:cart": "node --test tests/playerCart.test.mjs",
+    "test:player-api": "node --test tests/playerApi.test.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

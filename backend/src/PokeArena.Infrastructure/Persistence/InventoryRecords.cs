@@ -1,11 +1,12 @@
 
 namespace PokeArena.Infrastructure.Persistence;
 
-/// <summary>Modelo de una moneda virtual vinculada a un jugador.</summary>
+/// <summary>Relaciona un jugador con una carta y la cantidad de copias que posee.</summary>
 public sealed class PlayerCard
 {
     public Guid PlayerId { get; init; }
     public long CardId { get; init; }
+    public int Copies { get; set; } = 1;
 }
 
 // El primer movimiento acredita la colección inicial y demuestra que ya fue entregada.

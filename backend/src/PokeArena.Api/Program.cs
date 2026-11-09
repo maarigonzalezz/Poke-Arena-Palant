@@ -8,6 +8,7 @@ using PokeArena.Application.Common;
 using PokeArena.Application.Cards;
 using PokeArena.Application.Locations;
 using PokeArena.Application.Inventory;
+using PokeArena.Application.Catalog;
 
 using PokeArena.Infrastructure.Catalog;
 using PokeArena.Infrastructure.Persistence;
@@ -61,6 +62,8 @@ builder.Services.AddSingleton<InventoryValidationService>();
 // Servicio y repositorio usan el DbContext de la misma solicitud HTTP.
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<IInventoryRepository, PostgresInventoryRepository>();
+builder.Services.AddScoped<PlayerCatalogService>();
+builder.Services.AddScoped<IPlayerCatalogRepository, PostgresPlayerCatalogRepository>();
 
 // Registra Google, emisión propia y autorización administrativa separada.
 builder.Services.AddPlatformAuthentication(builder.Environment);

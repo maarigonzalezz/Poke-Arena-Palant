@@ -3,6 +3,7 @@ import { getLoginConfiguration, loginWithGoogle, type LoginConfiguration, type L
 import { loadGoogleIdentity, type GoogleIdentity } from "../services/googleIdentity";
 import PlayerExperiencePage from "./PlayerExperiencePage";
 import "../App.css";
+import { setPlayerAccessToken, signOutPlayer } from "../services/playerApi";
 
 /** Autentica con Google contra la API y continúa a la experiencia del jugador. */
 export default function LoginPage() {
@@ -26,6 +27,8 @@ export default function LoginPage() {
     setBusy(true); setError(""); setStatus("Google confirmó la cuenta. Validando el acceso...");
     try {
       const result = await loginWithGoogle(credential, controller.signal);
+      if (controller.signal.aborted) return;
+      setPlayerAccessToken(result.accessToken);
       setSession(result);
     } catch (cause) {
       if (!controller.signal.aborted)
@@ -81,6 +84,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!session) return;
     const timer = window.setTimeout(() => {
+      signOutPlayer();
       setSession(null); setError("La sesión venció. Inicie sesión nuevamente.");
     }, Math.max(0, Date.parse(session.expiresAt) - Date.now()));
     return () => window.clearTimeout(timer);
@@ -91,9 +95,12 @@ export default function LoginPage() {
       <PlayerExperiencePage
         key="authenticated"
         initialStage="welcome"
+        remoteData
+        cubeBalance={session.player.cubes}
         playerName={session.player.displayName ?? "Jugador"}
         onOpenAdmin={() => window.location.assign("/admin")}
         onSignOut={() => {
+          signOutPlayer();
           setSession(null);
           setError("");
           setStatus("");

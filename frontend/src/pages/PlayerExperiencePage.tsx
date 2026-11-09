@@ -4,11 +4,14 @@ import logo from "../assets/images (3).jpg";
 import { TYPE_MARKS, type PlayerCatalogCard } from "./playerCatalogTypes";
 import { PLAYER_TEST_CARDS, STARTING_CUBE_BALANCE } from "./playerTestData";
 import { EMPTY_PLAYER_CART, playerCartReducer } from "./playerCart";
+import { usePlayerCardPage } from "../hooks/usePlayerCardPage";
+import type { CardType } from "../types/catalogs";
 
 type Stage = "login" | "welcome" | "game";
 type Section = "catalog" | "collection" | "decks" | "cart";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
+const COLLECTION_PAGE_SIZE = 12;
 
 interface PlayerExperiencePageProps {
   onOpenAdmin: () => void;
@@ -20,6 +23,7 @@ interface PlayerExperiencePageProps {
   loginStatus?: string;
   onSaveDeck?: (name: string, cardCodes: string[]) => Promise<void>;
   cards?: PlayerCatalogCard[];
+  remoteData?: boolean;
   cubeBalance?: number;
   playerName?: string;
 }
@@ -34,7 +38,8 @@ export default function PlayerExperiencePage({
   loginError: externalLoginError,
   loginStatus,
   onSaveDeck,
-  cards = PLAYER_TEST_CARDS,
+  cards: initialCards = PLAYER_TEST_CARDS,
+  remoteData = false,
   cubeBalance = STARTING_CUBE_BALANCE,
   playerName = "Jugador",
 }: PlayerExperiencePageProps) {
@@ -46,6 +51,15 @@ export default function PlayerExperiencePage({
   const [typeFilter, setTypeFilter] = useState("");
   const [costFilter, setCostFilter] = useState("");
   const [page, setPage] = useState(0);
+  const catalogPage = usePlayerCardPage(remoteData && stage === "game" && section === "catalog", false, {
+    type: typeFilter ? typeFilter as CardType : undefined,
+    cost: costFilter === "" ? undefined : Number(costFilter),
+    ownedOnly: onlyOwned, pageSize: PAGE_SIZE,
+  });
+  const collectionPage = usePlayerCardPage(remoteData && (stage === "welcome" || (stage === "game" && (section === "collection" || section === "decks"))), true, { pageSize: COLLECTION_PAGE_SIZE });
+  const cards = useMemo(() => remoteData
+    ? [...new Map([...catalogPage.knownCards, ...collectionPage.knownCards].map(card => [card.code, card])).values()]
+    : initialCards, [remoteData, initialCards, catalogPage.knownCards, collectionPage.knownCards]);
   const [deckCards, setDeckCards] = useState<string[]>([]);
   const [deckName, setDeckName] = useState("Mi primer mazo");
   const [deckSaved, setDeckSaved] = useState(false);
@@ -54,11 +68,11 @@ export default function PlayerExperiencePage({
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const collectionCards = useMemo(() => {
     const purchasedQuantities = new Map<string, number>();
-    for (const code of cart.purchasedCodes) {
+    for (const code of remoteData ? [] : cart.purchasedCodes) {
       purchasedQuantities.set(code, (purchasedQuantities.get(code) ?? 0) + 1);
     }
     return cards.map(card => ({ ...card, quantity: card.quantity + (purchasedQuantities.get(card.code) ?? 0) }));
-  }, [cards, cart.purchasedCodes]);
+  }, [cards, cart.purchasedCodes, remoteData]);
   const cartCards = collectionCards.filter(card => (cart.quantities[card.code] ?? 0) > 0);
   const cartQuantity = cartCards.reduce((total, card) => total + cart.quantities[card.code], 0);
 
@@ -82,16 +96,20 @@ export default function PlayerExperiencePage({
     () => collectionCards.filter((card) => card.quantity > 0),
     [collectionCards],
   );
+  const ownedCount = remoteData ? collectionPage.totalCount : ownedCards.length;
   const filteredCards = useMemo(() => collectionCards.filter((card) => {
     const matchesType = !typeFilter || card.type === typeFilter;
     const matchesCost = costFilter === "" || card.cost === Number(costFilter);
     const matchesOwnership = !onlyOwned || card.quantity > 0;
     return matchesType && matchesCost && matchesOwnership;
   }), [collectionCards, costFilter, onlyOwned, typeFilter]);
-  const pageCount = Math.ceil(filteredCards.length / PAGE_SIZE);
-  const visibleCards = filteredCards.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const resultCount = remoteData ? catalogPage.totalCount : filteredCards.length;
+  const pageCount = Math.ceil(resultCount / PAGE_SIZE);
+  const visibleCards = remoteData ? catalogPage.items : filteredCards.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const collectionVisible = remoteData ? collectionPage.items : ownedCards;
 
   function updateFilters(update: () => void) {
+    catalogPage.reset();
     update();
     setPage(0);
   }
@@ -180,8 +198,8 @@ export default function PlayerExperiencePage({
           <div className="reward-row">
             <div className="reward-card reward-cards">
               <span className="reward-icon" aria-hidden="true">▤</span>
-              <strong>{ownedCards.length}</strong>
-              <span>{ownedCards.length === 1 ? "carta en colección" : "cartas en colección"}</span>
+              <strong>{ownedCount}</strong>
+              <span>{ownedCount === 1 ? "carta en colección" : "cartas en colección"}</span>
             </div>
             <div className="reward-card reward-cubes">
               <span className="reward-icon" aria-hidden="true">◈</span>
@@ -192,14 +210,15 @@ export default function PlayerExperiencePage({
           <div className="welcome-collection">
             <div className="section-heading">
               <div><h2>Mi colección</h2><p>Estas cartas ya están disponibles para tus mazos.</p></div>
-              {ownedCards.length > 0 && <span>ACTUALIZADA</span>}
+              {ownedCount > 0 && <span>ACTUALIZADA</span>}
             </div>
+            {remoteData && <PageStatus data={collectionPage} />}
             {ownedCards.length > 0 ? (
               <div className="mini-card-row">
                 {ownedCards.slice(0, 8).map((card) => <MiniCard key={card.code} card={card} />)}
-                {ownedCards.length > 8 && <span className="more-cards">+{ownedCards.length - 8}</span>}
+                {ownedCount > 8 && <span className="more-cards">+{ownedCount - 8}</span>}
               </div>
-            ) : <p className="player-empty-inline">No hay cartas para mostrar.</p>}
+            ) : !collectionPage.loading && !collectionPage.error && <p className="player-empty-inline">No hay cartas para mostrar.</p>}
           </div>
           <div className="welcome-actions">
             <button type="button" className="player-primary" onClick={() => {
@@ -248,8 +267,8 @@ export default function PlayerExperiencePage({
         <div className="player-sidebar-collection">
           <span className="arena-mark" aria-hidden="true" />
           <strong>Tu colección</strong>
-          <span>{ownedCards.length} cartas disponibles</span>
-          <div className="collection-meter"><span style={{ width: `${Math.min(ownedCards.length / 24 * 100, 100)}%` }} /></div>
+          <span>{ownedCount} cartas disponibles</span>
+          <div className="collection-meter"><span style={{ width: `${Math.min(ownedCount / 24 * 100, 100)}%` }} /></div>
         </div>
         <button type="button" className="player-admin-link" onClick={onOpenAdmin}>Estudio administrativo</button>
       </aside>
@@ -277,7 +296,7 @@ export default function PlayerExperiencePage({
             <header className="player-page-heading">
               <div><p className="eyebrow">Tu próxima estrategia empieza aquí</p><h1>Explora el catálogo</h1>
                 <p>Descubre cartas y encuentra las combinaciones perfectas para tu mazo.</p></div>
-              <div className="owned-summary"><span>▤</span><div><strong>{ownedCards.length}</strong><small>cartas en tu colección</small></div></div>
+              <div className="owned-summary"><span>▤</span><div><strong>{ownedCount}</strong><small>cartas en tu colección</small></div></div>
             </header>
             <div className="catalog-tools">
               <label>Tipo de carta
@@ -296,8 +315,9 @@ export default function PlayerExperiencePage({
                 <input type="checkbox" checked={onlyOwned} onChange={(event) => updateFilters(() => setOnlyOwned(event.target.checked))} />
                 Mostrar solo cartas propias
               </label>
-              <span className="catalog-result-count">{filteredCards.length} cartas encontradas</span>
+              <span className="catalog-result-count">{resultCount} cartas encontradas</span>
             </div>
+            {remoteData && <PageStatus data={catalogPage} />}
             <div className="player-card-grid">
               {visibleCards.map((card) => <PlayerCard key={card.code} card={card}
                 quantity={card.quantity}
@@ -308,11 +328,11 @@ export default function PlayerExperiencePage({
                   onClick: () => addCartCard(card.code),
                 }} />)}
             </div>
-            {visibleCards.length === 0 && <div className="empty-state"><span className="empty-icon">⌕</span>
+            {visibleCards.length === 0 && !catalogPage.loading && !catalogPage.error && <div className="empty-state"><span className="empty-icon">⌕</span>
               <h3>No encontramos cartas</h3>
               <p>Prueba con otros filtros para ver más opciones.</p>
             </div>}
-            {pageCount > 1 && <div className="player-pagination">
+            {remoteData ? <ServerPagination data={catalogPage} /> : pageCount > 1 && <div className="player-pagination">
               <span>Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredCards.length)} de {filteredCards.length}</span>
               <div>
                 <button type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Anterior</button>
@@ -331,10 +351,10 @@ export default function PlayerExperiencePage({
               <div className="owned-summary"><span aria-hidden="true">🛒</span><div><strong>{cartQuantity}</strong><small>cartas en el pokecarrito</small></div></div>
             </header>
             <div className="panel cart-checkout">
-              <p>Compra de demostración: las cartas se agregan a tu colección durante esta sesión. No se realizan cobros ni se descuentan cubos. Los cambios se pierden al salir o recargar.</p>
+              <p>{remoteData ? "Puedes preparar tu carrito. La compra de cartas todavía no está disponible." : "Compra de demostración: las cartas se agregan a tu colección durante esta sesión. No se realizan cobros ni se descuentan cubos. Los cambios se pierden al salir o recargar."}</p>
               <div className="deck-actions">
                 <button type="button" className="player-primary" onClick={() => setSection("catalog")}>Seguir explorando</button>
-                <button type="button" className="player-primary" disabled={cartCards.length === 0}
+                <button type="button" className="player-primary" disabled={remoteData || cartCards.length === 0}
                   onClick={purchaseCart}>Comprar cartas ({cartQuantity})</button>
               </div>
             </div>
@@ -356,18 +376,20 @@ export default function PlayerExperiencePage({
             <header className="player-page-heading">
               <div><p className="eyebrow">Lo que has reunido</p><h1>Mi colección</h1>
                 <p>Las cartas que posees estarán disponibles para tus mazos.</p></div>
-              <div className="owned-summary"><span>▤</span><div><strong>{ownedCards.length}</strong><small>cartas reunidas</small></div></div>
+              <div className="owned-summary"><span>▤</span><div><strong>{ownedCount}</strong><small>cartas reunidas</small></div></div>
             </header>
             <div className="collection-highlight"><span className="collection-highlight-icon">◈</span>
               <div><strong>{cubeBalance?.toLocaleString("es-ES") ?? "—"} cubos</strong><span>Saldo de la cuenta</span></div>
               <span className="collection-highlight-badge">CUENTA DE JUGADOR</span>
             </div>
+            {remoteData && <PageStatus data={collectionPage} />}
             <div className="player-card-grid collection-grid">
-              {ownedCards.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
+              {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
                 selected={deckCards.includes(card.code)} canAdd={deckCards.length < 12 || deckCards.includes(card.code)}
                 onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
-            {ownedCards.length === 0 && <div className="empty-state"><span className="empty-icon">▤</span><h3>Tu colección está vacía</h3><p>Explora el catálogo para encontrar cartas.</p></div>}
+            {remoteData && <ServerPagination data={collectionPage} />}
+            {collectionVisible.length === 0 && !collectionPage.loading && !collectionPage.error && <div className="empty-state"><span className="empty-icon">▤</span><h3>Tu colección está vacía</h3><p>Explora el catálogo para encontrar cartas.</p></div>}
           </section>
         )}
 
@@ -403,16 +425,36 @@ export default function PlayerExperiencePage({
             </div>
             <div className="section-heading deck-pick-heading"><div><h2>Cartas disponibles</h2><p>Solo puedes agregar cartas de tu colección.</p></div><span>{ownedCards.length} cartas propias</span></div>
             <div className="player-card-grid deck-pick-grid">
-              {ownedCards.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
+              {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
                 selected={deckCards.includes(card.code)} canAdd={deckCards.length < 12 || deckCards.includes(card.code)}
                 onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
-            {ownedCards.length === 0 && <div className="empty-state"><span className="empty-icon">▤</span><h3>No tienes cartas disponibles</h3><p>Agrega cartas a tu colección antes de armar un mazo.</p></div>}
+            {remoteData && <><PageStatus data={collectionPage} /><ServerPagination data={collectionPage} /></>}
+            {collectionVisible.length === 0 && !collectionPage.loading && !collectionPage.error && <div className="empty-state"><span className="empty-icon">▤</span><h3>No tienes cartas disponibles</h3><p>Agrega cartas a tu colección antes de armar un mazo.</p></div>}
           </section>
         )}
       </main>
     </div>
   );
+}
+
+/** Comparte estados de red y navegación entre catálogo y colección. */
+function PageStatus({ data }: { data: ReturnType<typeof usePlayerCardPage> }) {
+  if (data.loading) return <p role="status">Cargando cartas...</p>;
+  if (data.error) return <div className="alert error" role="alert">{data.error} <button type="button" onClick={data.retry}>Reintentar</button></div>;
+  return null;
+}
+
+function ServerPagination({ data }: { data: ReturnType<typeof usePlayerCardPage> }) {
+  if (data.loading || data.error || data.totalCount === 0) return null;
+  return <div className="player-pagination">
+    <span>{data.totalCount} cartas encontradas</span>
+    <div>
+      <button type="button" disabled={data.page === 0} onClick={data.previous}>Anterior</button>
+      <strong>Página {data.page + 1}</strong>
+      <button type="button" disabled={data.nextPosition === null} onClick={data.next}>Siguiente</button>
+    </div>
+  </div>;
 }
 
 function MiniCard({ card }: { card: PlayerCatalogCard }) {
@@ -442,10 +484,10 @@ function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle, catalogAct
         <div className="player-card-title"><h3>{card.name}</h3><span className={`rarity-tag rarity-${card.rarity.toLowerCase().replace(" ", "-")}`}>{card.rarity}</span></div>
         <p className="player-card-ability">{card.abilityName}</p>
         <div className="player-card-stats"><span><small>COSTO</small><strong>◈ {card.cost}</strong></span><span><small>PODER</small><strong>✦ {card.power}</strong></span></div>
-        {(!catalogAction || quantity > 0) && <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
+        <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
           <span aria-hidden="true">{quantity ? "✓" : "○"}</span>
           {quantity ? `En tu colección · ${quantity} ${quantity === 1 ? "copia" : "copias"}` : "Aún no la tienes"}
-        </div>}
+        </div>
         {catalogAction && catalogAction.quantity > 0 ? (
           <div className="cart-quantity" role="group" aria-label={`Cantidad de ${card.name} en el carrito`}>
             <button type="button" aria-label={`Reducir cantidad de ${card.name}`} onClick={() => catalogAction.onQuantityChange(catalogAction.quantity - 1)}>−</button>

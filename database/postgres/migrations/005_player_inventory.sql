@@ -5,6 +5,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS player_cards (
     player_id UUID NOT NULL,
     card_id BIGINT NOT NULL,
+    copies INTEGER NOT NULL DEFAULT 1,
 
     PRIMARY KEY (player_id, card_id),
 
@@ -16,6 +17,10 @@ CREATE TABLE IF NOT EXISTS player_cards (
         REFERENCES cards(id) 
         ON DELETE CASCADE
 );
+
+-- Actualiza tambien las bases donde player_cards ya existe.
+ALTER TABLE player_cards
+    ADD COLUMN IF NOT EXISTS copies INTEGER NOT NULL DEFAULT 1;
 
 -- Agregar la tabla de monedas virtuales de los jugadores
 ALTER TABLE players

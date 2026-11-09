@@ -85,6 +85,7 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         var playerCards = model.Entity<PlayerCard>(); // vincular entidad a la tabla
         playerCards.ToTable("player_cards");
         playerCards.HasKey(x => new { x.PlayerId, x.CardId });
+        playerCards.Property(x => x.Copies).IsRequired().HasDefaultValue(1);
 
         // La secuencia ordena el historial y la restricción impide acreditar dos premios iniciales.
         var movement = model.Entity<PlayerCubeMovement>();

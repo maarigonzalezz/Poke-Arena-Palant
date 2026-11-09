@@ -82,9 +82,11 @@ export async function getPlayerProfile(): Promise<PlayerProfile> {
 /** Requests one server-paginated catalog page; filters are combined by the API. */
 export async function getPlayerCatalog(
   filters: PlayerCatalogFilters = {},
+  signal?: AbortSignal,
 ): Promise<PlayerCardPage> {
-  return request<PlayerCardPage>(
+  return readCardPage(
     `${PLAYER_API_ROUTES.catalog}${toQueryString(filters)}`,
+    signal,
   );
 }
 
@@ -92,10 +94,21 @@ export async function getPlayerCatalog(
 export async function getPlayerCollection(
   pageSize = 24,
   after?: number,
+  signal?: AbortSignal,
 ): Promise<PlayerCardPage> {
-  return request<PlayerCardPage>(
+  return readCardPage(
     `${PLAYER_API_ROUTES.collection}${toQueryString({ pageSize, after })}`,
+    signal,
   );
+}
+
+/** Las rutas /files pertenecen a la API, aunque React se sirva en otro puerto. */
+async function readCardPage(path: string, signal?: AbortSignal): Promise<PlayerCardPage> {
+  const page = await request<PlayerCardPage>(path, { signal, cache: "no-store" });
+  return { ...page, items: page.items.map(card => ({
+    ...card,
+    imageUrl: card.imageUrl ? new URL(card.imageUrl, `${API_BASE_URL}/`).href : null,
+  })) };
 }
 
 /** Saves a 12-card deck; the server must validate ownership and deck rules. */
@@ -130,7 +143,8 @@ async function request<T>(
       ...options,
       headers,
     });
-  } catch {
+  } catch (cause) {
+    if (options.signal?.aborted) throw cause;
     throw new PlayerApiError(0, "No se pudo conectar con la API de Poké-Arena.");
   }
 
