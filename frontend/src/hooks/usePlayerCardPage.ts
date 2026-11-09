@@ -25,7 +25,7 @@ export function usePlayerCardPage(enabled: boolean, collection: boolean, filters
     request.then(data => {
       if (controller.signal.aborted) return;
       setResult({ key: requestKey, data, error: "" });
-      // Conserva solo cartas ya vistas para el carrito y las selecciones del constructor de mazos.
+      // Conserva las cartas ya vistas para las selecciones del constructor de mazos.
       setKnownCards(previous => [...new Map([...previous, ...data.items].map(card => [card.code, card])).values()]);
     }).catch((cause: unknown) => {
       if (!controller.signal.aborted)
