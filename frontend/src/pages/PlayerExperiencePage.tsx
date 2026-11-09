@@ -414,7 +414,7 @@ function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle }: {
       <div className="player-card-content">
         <div className="player-card-title"><h3>{card.name}</h3><span className={`rarity-tag rarity-${card.rarity.toLowerCase().replace(" ", "-")}`}>{card.rarity}</span></div>
         <p className="player-card-ability">{card.abilityName}</p>
-        <div className="player-card-stats"><span><small>COSTO</small><strong><span aria-hidden="true">⚡</span> {card.cost}</strong></span><span><small>PODER</small><strong>✦ {card.power}</strong></span></div>
+        <div className="player-card-stats"><span><small>COSTO</small><strong><span aria-hidden="true">⚡︎</span> {card.cost}</strong></span><span><small>PODER</small><strong>✦ {card.power}</strong></span></div>
         <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
           <span aria-hidden="true">{quantity ? "✓" : "○"}</span>
           {quantity ? `En tu colección · ${quantity} ${quantity === 1 ? "copia" : "copias"}` : "Aún no la tienes"}
