@@ -6,7 +6,7 @@ public sealed class InventoryValidationException(Dictionary<string, string> erro
     string message = "Los datos del inventario son inválidos.") : Exception(message)
 {
     public Dictionary<string, string> Errors { get; } = errors;
-    // Conserva el código público del error de búsqueda al mover la validación a Application.
+    // Conserva el código público del error de inventario cuando la operación lo necesita.
     public string? Type { get; } = type;
 }
 

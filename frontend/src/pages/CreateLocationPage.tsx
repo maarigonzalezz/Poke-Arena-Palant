@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   CARD_TYPES,
   type CardType,
@@ -8,7 +8,7 @@ import {
   type CreateLocationInput,
 } from "../types/catalogs";
 import { createLocation, IS_MOCK_MODE } from "../services/catalogApi";
-import { validateImage } from "../services/imageValidation";
+import ImageUpload from "../components/ImageUpload";
 
 /** Captura una ubicación con límites de cartas, energía, efectos e imagen validada. */
 export default function CreateLocationPage() {
@@ -28,7 +28,6 @@ export default function CreateLocationPage() {
     useState<number[]>([]);
 
   const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
@@ -36,7 +35,6 @@ export default function CreateLocationPage() {
   // Reutiliza la clave si falla el envío; una edición inicia una operación distinta.
   const keyRef = useRef(crypto.randomUUID());
 
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   function changed() {
     keyRef.current = crypto.randomUUID();
@@ -54,25 +52,6 @@ export default function CreateLocationPage() {
     );
   }
 
-  async function chooseImage(file?: File) {
-    if (preview) URL.revokeObjectURL(preview);
-
-    setImage(null);
-    setPreview("");
-    changed();
-
-    if (!file) return;
-
-    try {
-      const info = await validateImage(file, "location");
-      setImage(file);
-      setPreview(info.previewUrl);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Imagen inválida."
-      );
-    }
-  }
 
   // Incluye únicamente los parámetros correspondientes al efecto seleccionado.
   function effectParameters(): Record<string, unknown> {
@@ -403,34 +382,15 @@ export default function CreateLocationPage() {
         )}
 
         <h2>Imagen de la ubicación</h2>
-        <p className="help-text">
-          PNG, JPG o WebP, máximo 5 MB, proporción 4:3,
-          resolución mínima 800 × 600.
-        </p>
-
-        <input
-          aria-label="Imagen de la ubicación"
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={(e) => {
-            void chooseImage(e.target.files?.[0]);
-          }}
-        />
-
-        {preview && (
-          <div className="image-preview location">
-            <img src={preview} alt="Vista previa de ubicación" />
-            <p>
-              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 320 × 240." : "Se conserva el original y se genera una miniatura de 320 × 240."}
-            </p>
-          </div>
-        )}
+        {/* La ubicación reutiliza el redimensionado con sus propias dimensiones. */}
+        <ImageUpload kind="location" disabled={saving}
+          onChange={file => { changed(); setImage(file); }} />
 
         {error && <p className="alert error" role="alert">{error}</p>}
         {success && <p className="alert success" role="status">{success}</p>}
 
         <div className="actions">
-          <button type="submit" disabled={saving}>
+          <button type="submit" disabled={saving || !image}>
             {saving ? "Guardando..." : "Crear ubicación"}
           </button>
         </div>

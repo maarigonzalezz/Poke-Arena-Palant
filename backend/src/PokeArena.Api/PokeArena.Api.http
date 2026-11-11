@@ -1,7 +1,7 @@
-# Petición manual al endpoint de ejemplo usando el perfil HTTP local.
+# Consulta pública de la configuración de acceso del servidor local.
 @PokeArena.Api_HostAddress = http://localhost:5003
 
-GET {{PokeArena.Api_HostAddress}}/weatherforecast/
+GET {{PokeArena.Api_HostAddress}}/api/auth/config
 Accept: application/json
 
 ###

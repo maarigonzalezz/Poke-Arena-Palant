@@ -1,6 +1,6 @@
 BEGIN;
 
--- Solo desarrollo: inserta 12 cartas tras init.sql sin reemplazar códigos existentes.
+-- Solo desarrollo: propone 31 cartas, 20 comunes, sin reemplazar códigos existentes.
 INSERT INTO cards (
     code, name, cost, power,
     card_type, rarity, ability_code, image_status

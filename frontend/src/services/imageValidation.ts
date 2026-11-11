@@ -9,17 +9,20 @@ export interface ImageInfo {
 
 const MAX_SIZE = 5 * 1024 * 1024;
 
+// La conversión automática y la validación final comparten las dimensiones de salida.
+export const IMAGE_RULES = {
+  card: { width: 600, height: 840 },
+  location: { width: 800, height: 600 },
+} as const;
+
 const ALLOWED_TYPES = [
   "image/png",
   "image/jpeg",
   "image/webp",
 ];
 
-/** Valida formato, peso y dimensiones. El consumidor debe liberar previewUrl al dejar de usarla. */
-export async function validateImage(
-  file: File,
-  kind: ImageKind
-): Promise<ImageInfo> {
+/** Abre una imagen local; el consumidor libera previewUrl cuando deja de usarla. */
+export async function readImage(file: File): Promise<ImageInfo> {
   if (!ALLOWED_TYPES.includes(file.type)) {
     throw new Error(
       "La imagen debe ser PNG, JPG o WebP."
@@ -48,9 +51,21 @@ export async function validateImage(
     const width = image.naturalWidth;
     const height = image.naturalHeight;
 
+    return { width, height, previewUrl: url };
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
+/** Comprueba el archivo definitivo antes de enviarlo al backend. */
+export async function validateImage(file: File, kind: ImageKind): Promise<ImageInfo> {
+  const info = await readImage(file);
+  try {
+    const { width, height } = info;
+
     // Cartas y ubicaciones tienen resoluciones y proporciones distintas.
-    const minWidth = kind === "card" ? 600 : 800;
-    const minHeight = kind === "card" ? 840 : 600;
+    const { width: minWidth, height: minHeight } = IMAGE_RULES[kind];
 
     if (width < minWidth || height < minHeight) {
       throw new Error(
@@ -58,8 +73,7 @@ export async function validateImage(
       );
     }
 
-    const expectedRatio =
-      kind === "card" ? 5 / 7 : 4 / 3;
+    const expectedRatio = minWidth / minHeight;
 
     const ratio = width / height;
 
@@ -72,14 +86,10 @@ export async function validateImage(
       );
     }
 
-    return {
-      width,
-      height,
-      previewUrl: url,
-    };
+    return info;
   // Libera la referencia temporal cuando la imagen no supera la validación.
   } catch (error) {
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(info.previewUrl);
     throw error;
   }
 }

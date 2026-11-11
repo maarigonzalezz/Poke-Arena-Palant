@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using PokeArena.Application.Common;
 using PokeArena.Application.Authentication;
+using PokeArena.Application.Inventory;
 
 namespace PokeArena.Api;
 
@@ -16,6 +17,7 @@ public sealed class CatalogExceptionFilter(ILogger<CatalogExceptionFilter> logge
         context.Result = context.Exception switch
         {
             AuthenticationFailure ex => new ObjectResult(new { type = ex.Code, message = ex.Message }) { StatusCode = ex.StatusCode },
+            InventoryValidationException ex => new BadRequestObjectResult(new { type = ex.Type, message = ex.Message, errors = ex.Errors }),
             CatalogValidationException ex when ex.Type is not null =>
                 new BadRequestObjectResult(new { type=ex.Type, message=ex.Message, errors=ex.Errors }),
             CatalogValidationException ex => new BadRequestObjectResult(new { message=ex.Message, errors=ex.Errors }),

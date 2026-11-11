@@ -13,9 +13,7 @@ import {
   getAbilities,
   IS_MOCK_MODE,
 } from "../services/catalogApi";
-import {
-  validateImage,
-} from "../services/imageValidation";
+import ImageUpload from "../components/ImageUpload";
 
 // HAB-000 representa Sin Habilidad dentro del mismo catálogo de habilidades.
 const NO_ABILITY: Ability = {
@@ -38,15 +36,13 @@ export default function CreateCardPage() {
   const [abilities, setAbilities] = useState<Ability[]>([NO_ABILITY]);
   const [abilitiesError, setAbilitiesError] = useState("");
   const [loadingAbilities, setLoadingAbilities] = useState(true);
-  // El archivo se envía al backend; preview solo sirve para mostrarlo en pantalla.
+  // Solo envía el archivo después de terminar el redimensionado automático.
   const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
-  const [imageInfo, setImageInfo] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageUploadKey, setImageUploadKey] = useState(0);
   // Bloquea también envíos consecutivos antes de que React actualice la pantalla.
   const submitLockedRef = useRef(false);
 
@@ -80,8 +76,6 @@ export default function CreateCardPage() {
     (a) => a.code === abilityCode
   );
 
-  // Libera la URL temporal de la imagen al cambiarla o abandonar la pantalla.
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   function changed() {
     setError("");
@@ -100,37 +94,12 @@ export default function CreateCardPage() {
     setRarity("Común");
     setAbilityCode("HAB-000");
     setImage(null);
-    setPreview("");
-    setImageInfo("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setImageUploadKey(key => key + 1);
     changed();
     setCreated(false);
     submitLockedRef.current = false;
   }
 
-  // Valida la nueva imagen antes de habilitar su previsualización.
-  async function chooseImage(file?: File) {
-    if (preview) URL.revokeObjectURL(preview);
-    setImage(null);
-    setPreview("");
-    setImageInfo("");
-    changed();
-
-    if (!file) return;
-
-    try {
-      const info = await validateImage(file, "card");
-      setImage(file);
-      setPreview(info.previewUrl);
-      setImageInfo(`${info.width} × ${info.height} px`);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Imagen inválida."
-      );
-    }
-  }
 
   // La validación local orienta al usuario; la API vuelve a validar antes de persistir.
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -357,38 +326,16 @@ export default function CreateCardPage() {
 
         <h2>Imagen de la carta</h2>
 
-        <p className="help-text">
-          PNG, JPG o WebP. Máximo 5 MB.
-          Proporción 5:7 y resolución mínima 600 × 840.
-        </p>
-
-        <input
-          aria-label="Imagen de la carta"
-          ref={fileInputRef}
-          disabled={saving || created}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={(e) => {
-            void chooseImage(e.target.files?.[0]);
-          }}
-        />
-
-        {preview && (
-          <div className="image-preview">
-            <img src={preview} alt="Vista previa de la carta" />
-            <p>{imageInfo}</p>
-            <p>
-              {IS_MOCK_MODE ? "La simulación guarda una miniatura local de 200 × 280 píxeles." : "El servidor generará la miniatura de 200 × 280 píxeles."}
-            </p>
-          </div>
-        )}
+        {/* Seleccionar la imagen la adapta automáticamente al tamaño de una carta. */}
+        <ImageUpload key={imageUploadKey} kind="card" disabled={saving || created}
+          onChange={file => { changed(); setImage(file); }} />
 
         {/* Presenta el resultado del envío sin abandonar el formulario. */}
         {error && <p className="alert error" role="alert">{error}</p>}
         {success && <p className="alert success" role="status">{success}</p>}
 
         <div className="actions">
-          <button disabled={saving || created || loadingAbilities || !!abilitiesError} type="submit">
+          <button disabled={saving || created || loadingAbilities || !!abilitiesError || !image} type="submit">
             {saving ? "Guardando..." : created ? "Carta creada" : loadingAbilities ? "Cargando habilidades..." : "Crear carta"}
           </button>
           {created && (

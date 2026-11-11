@@ -1,0 +1,3 @@
+/* Muestra el archivo convertido con su proporción final dentro del formulario. */
+.image-upload { min-width: 0; margin: 1rem 0; padding: 1rem; }
+.image-upload img { display: block; width: min(100%, 280px); height: auto; margin: 1rem auto; background: #e5e7eb; }

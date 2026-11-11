@@ -57,8 +57,6 @@ builder.Services.AddScoped<ICatalogTransaction, CatalogTransaction>();
 builder.Services.AddHostedService<SearchSessionCleanup>();
 builder.Services.AddScoped<IAbilityRepository, PostgresAbilityRepository>();
 
-// El validador no conserva estado y puede compartirse entre solicitudes.
-builder.Services.AddSingleton<InventoryValidationService>();
 // Servicio y repositorio usan el DbContext de la misma solicitud HTTP.
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<IInventoryRepository, PostgresInventoryRepository>();

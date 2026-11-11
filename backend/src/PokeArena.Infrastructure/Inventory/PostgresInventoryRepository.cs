@@ -13,6 +13,8 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
     : IInventoryRepository
 {
     private const string InitialReason = "InitialCollection";
+    private const int InitialCollectionSize = 15;
+    private const int StarterDeckSize = 12;
 
     private static CardItem CardI(Card card, AbilityRecord ability) => new(
         card.Id, card.Code, card.Name, card.Cost, card.Power, card.CardType, card.Rarity,
@@ -25,6 +27,8 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
     // Solo devuelve datos persistidos; un GET no acredita cubos ni entrega cartas.
     public async Task<PlayerProfileResult> ConsultAsync(Guid playerId, CancellationToken cancellationToken = default)
     {
+        if (playerId == Guid.Empty)
+            throw new InventoryValidationException(new() { ["playerId"] = "Jugador inválido." });
         // Saldo y cartas se leen de la misma instantánea aunque otra solicitud termine la entrega.
         await using var snapshot = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken);
         var player = await db.Players.AsNoTracking().SingleOrDefaultAsync(p => p.Id == playerId, cancellationToken);
@@ -46,9 +50,10 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
             where entry.PlayerId == playerId && card.Active
             orderby card.Id
             select card.Id
-        ).Take(12).ToListAsync(cancellationToken);
+        ).Take(StarterDeckSize).ToListAsync(cancellationToken);
+        // El mazo usa doce cartas; no sustituye el requisito de quince para la entrega.
         var result = new PlayerProfileResult(Profile(player!), false, owned, status,
-            InventoryValidationService.CanBuildStarterDeck(deck) ? deck : []);
+            deck.Distinct().Count() == StarterDeckSize ? deck : []);
         await snapshot.CommitAsync(cancellationToken);
         return result;
     }
@@ -56,6 +61,8 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
     // Un fallo revierte la entrega completa y permite volver a intentarla sin perder la cuenta.
     public async Task<InitialCollectionResult> EnsureInitialCollectionAsync(Guid playerId, CancellationToken cancellationToken = default)
     {
+        if (playerId == Guid.Empty)
+            throw new InventoryValidationException(new() { ["playerId"] = "Jugador inválido." });
         try { return await DeliverAsync(playerId, cancellationToken); }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is DbUpdateException or NpgsqlException)
         {
@@ -87,18 +94,19 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
         var available = await db.Cards.AsNoTracking()
             .Where(card => card.Active && card.Rarity == "Común")
             .OrderBy(card => card.Id).Select(card => card.Id).ToListAsync(cancellationToken);
-        if (available.Count < 15)
+        if (available.Count < InitialCollectionSize)
             return new InitialCollectionResult("PendingCatalog", "No hay suficientes cartas comunes; el juego aún no está disponible.");
 
-        var chosen = new List<long>(15);
-        while (chosen.Count < 15)
+        var chosen = new List<long>(InitialCollectionSize);
+        while (chosen.Count < InitialCollectionSize)
         {
             var index = Random.Shared.Next(available.Count);
             chosen.Add(available[index]);
             available.RemoveAt(index);
         }
-        if (!InventoryValidationService.CanBuildStarterDeck(chosen))
-            throw new InvalidOperationException("La colección inicial no permite formar un deck de doce cartas.");
+        // Comprueba la entrega completa antes de escribir cartas, saldo o historial.
+        if (chosen.Count != InitialCollectionSize || chosen.Distinct().Count() != InitialCollectionSize)
+            throw new InvalidOperationException("La colección inicial debe contener quince cartas distintas.");
 
         foreach (var cardId in chosen)
             db.PlayerCards.Add(new PlayerCard { PlayerId = playerId, CardId = cardId });
@@ -119,6 +127,10 @@ public sealed class PostgresInventoryRepository(PokeArenaDbContext db, ILogger<P
 
     public async Task<CubeHistoryResult> GetCubeHistoryAsync(Guid playerId, int after, CancellationToken cancellationToken = default)
     {
+        if (playerId == Guid.Empty)
+            throw new InventoryValidationException(new() { ["playerId"] = "Jugador inválido." });
+        if (after < 0)
+            throw new InventoryValidationException(new() { ["after"] = "Debe ser cero o positivo." });
         EnsureActive(await db.Players.AsNoTracking().SingleOrDefaultAsync(x => x.Id == playerId, cancellationToken));
         // El cursor acota cada respuesta sin omitir el movimiento inicial de la primera página.
         var rows = await db.PlayerCubeMovements.AsNoTracking()
