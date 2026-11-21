@@ -1,13 +1,14 @@
 using PokeArena.Application.Cards;
 using PokeArena.Application.Common;
 using PokeArena.Domain.Catalogs;
+using PokeArena.Application.Authentication;
 
 namespace PokeArena.Application.Catalog;
 
 //Valida la exploracion antes de consultar el catalogo o la coleccion.
 public sealed class PlayerCatalogService(IPlayerCatalogRepository repository)
 {
-    public Task<PlayerCatalogPage> BrowseAsync(Guid playerId, PlayerCatalogQuery query,
+    public async Task<PlayerCatalogPage> BrowseAsync(Guid playerId, PlayerCatalogQuery query,
         CancellationToken cancellationToken)
     {
         // Reutiliza las reglas del catalogo administrativo; su cursor de sesiones no aplica aqui.
@@ -24,6 +25,7 @@ public sealed class PlayerCatalogService(IPlayerCatalogRepository repository)
         if (errors.Count > 0)
             throw new CatalogValidationException(errors);
 
-        return repository.BrowseAsync(playerId, query, cancellationToken);
+        PlayerAccess.RequireActive(await repository.FindPlayerAsync(playerId, cancellationToken));
+        return await repository.BrowseAsync(playerId, query, PlayerCatalogRules.VisibleCards, cancellationToken);
     }
 }

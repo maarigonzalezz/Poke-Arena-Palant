@@ -69,10 +69,15 @@ public sealed class PlayerCatalogTests
 
     private sealed class RecordingRepository : IPlayerCatalogRepository
     {
+        public Task<PokeArena.Domain.Entities.Player?> FindPlayerAsync(Guid id, CancellationToken token) =>
+            Task.FromResult<PokeArena.Domain.Entities.Player?>(new() {
+                Id = id, IdentityProvider = "Google", ProviderSubject = "test"
+            });
         public PlayerCatalogQuery? Query { get; private set; }
         public Guid PlayerId { get; private set; }
 
-        public Task<PlayerCatalogPage> BrowseAsync(Guid playerId, PlayerCatalogQuery query, CancellationToken cancellationToken)
+        public Task<PlayerCatalogPage> BrowseAsync(Guid playerId, PlayerCatalogQuery query,
+            System.Linq.Expressions.Expression<Func<PokeArena.Domain.Entities.Card, bool>> visibility, CancellationToken cancellationToken)
         {
             PlayerId = playerId;
             Query = query;

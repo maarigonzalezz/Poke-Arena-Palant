@@ -108,6 +108,7 @@ async function readCardPage(path: string, signal?: AbortSignal): Promise<PlayerC
   return { ...page, items: page.items.map(card => ({
     ...card,
     imageUrl: card.imageUrl ? new URL(card.imageUrl, `${API_BASE_URL}/`).href : null,
+    imageSmallUrl: card.imageSmallUrl ? new URL(card.imageSmallUrl, `${API_BASE_URL}/`).href : null,
   })) };
 }
 

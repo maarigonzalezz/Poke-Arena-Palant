@@ -6,25 +6,25 @@ namespace PokeArena.Api.Controllers;
 // Los números anulables permiten distinguir un campo omitido del valor válido cero.
 public sealed class CreateCardForm
 {
-    [Required, StringLength(120)] public string Name { get; set; } = "";
-    [Required, Range(0, 10)] public int? Cost { get; set; }
-    [Required, Range(-20, 20)] public int? Power { get; set; }
+    [Required] public string Name { get; set; } = "";
+    [Required] public int? Cost { get; set; }
+    [Required] public int? Power { get; set; }
     [Required] public string Type { get; set; } = "";
     [Required] public string Rarity { get; set; } = "";
     [Required] public string AbilityCode { get; set; } = "";
     [Required] public IFormFile? Image { get; set; }
 }
 
-// Las anotaciones rechazan campos omitidos o fuera de rango antes del controlador.
+// HTTP comprueba presencia y formato; Application decide longitudes y rangos permitidos.
 public sealed class CreateLocationForm
 {
-    [Required, StringLength(120)] public string Name { get; set; } = "";
-    [Required, StringLength(10000)] public string Description { get; set; } = "";
-    [Required, Range(0, 5)] public int? MaxCards { get; set; }
+    [Required] public string Name { get; set; } = "";
+    [Required] public string Description { get; set; } = "";
+    [Required] public int? MaxCards { get; set; }
     [Required] public string EnergyMode { get; set; } = "";
-    [Required, Range(0, 3)] public int? ExtraEnergy { get; set; }
+    [Required] public int? ExtraEnergy { get; set; }
     [Required] public string EffectType { get; set; } = "";
-    [Required, StringLength(4096)] public string EffectParameters { get; set; } = "{}";
+    [Required] public string EffectParameters { get; set; } = "{}";
     [Required] public IFormFile? Image { get; set; }
 }
 

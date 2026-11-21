@@ -44,6 +44,7 @@ public sealed class PlayerCatalogApiTests(CatalogFixture fixture)
         Assert.Equal("F1", owned.Code);
         Assert.Equal(3, owned.Quantity);
         Assert.Equal("/files/large1.png", owned.ImageUrl);
+        Assert.Equal("/files/small1.png", owned.ImageSmallUrl);
         Assert.Equal(0, Assert.Single(page.Items, item => !item.Owned).Quantity);
 
         var collection = await client.GetFromJsonAsync<PlayerCatalogPage>("/api/player/collection?type=Fuego&cost=3&ownedOnly=false");

@@ -6,7 +6,7 @@ import {
   type Card,
   type CardFilters,
 } from "../types/catalogs";
-import { API_BASE_URL } from "../services/api";
+import CardImage from "../components/CardImage";
 import Icon from "../components/Icon";
 import {
   searchCards,
@@ -445,19 +445,7 @@ export default function SearchCardPage() {
         <div className="cards-grid">
           {cards.map((card) => (
             <article className="catalog-card" key={card.code} data-type={card.type}>
-              {card.imageUrl ? (
-                <img
-                  src={card.imageUrl.startsWith("/")
-                    ? `${API_BASE_URL}${card.imageUrl}`
-                    : card.imageUrl}
-                  alt={`Carta ${card.name}`}
-                  loading="lazy"
-                />
-              ) : (
-                <div className="image-placeholder">
-                  Imagen: {card.imageStatus}
-                </div>
-              )}
+              <CardImage card={card} />
 
               <div className="catalog-card-body">
                 <small>{card.code}</small>

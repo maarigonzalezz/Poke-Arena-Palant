@@ -21,20 +21,20 @@ public static class CardSearchValidator
 
         // Limita el texto aceptado por cada criterio antes de construir la consulta.
         foreach (var (field, value, limit) in new[] {
-            ("code", query.Code, 20), ("name", query.Name, 120),
+            ("code", query.Code, 20), ("name", query.Name, GameRules.MaximumNameLength),
             ("abilityCode", query.AbilityCode, 20), ("abilityTrigger", query.AbilityTrigger, 50),
             ("abilityEffect", query.AbilityEffect, 50) })
             if (value?.Length > limit) errors[field] = $"Admite hasta {limit} caracteres.";
 
         // Acota cuántas cartas pueden viajar en una sola respuesta.
-        if (query.PageSize < 1 || query.PageSize > 100)
+        if (query.PageSize < 1 || query.PageSize > GameRules.MaximumPageSize)
         {
             errors["pageSize"] =
                 "Debe estar entre 1 y 100.";
         }
 
         // Reserva espacio para sumar el tamaño de página sin desbordar el cursor.
-        if (query.After < 0 || query.After > long.MaxValue - 100)
+        if (query.After < 0 || query.After > long.MaxValue - GameRules.MaximumPageSize)
         {
             errors["after"] =
                 "La posición está fuera del rango permitido.";
@@ -46,23 +46,23 @@ public static class CardSearchValidator
                 "Se requiere searchId para continuar.";
         }
 
-        if (query.Cost is < 0 or > 10)
+        if (query.Cost is < GameRules.MinimumCost or > GameRules.MaximumCost)
             errors["cost"] = "Debe estar entre 0 y 10.";
 
-        if (query.MinCost is < 0 or > 10)
+        if (query.MinCost is < GameRules.MinimumCost or > GameRules.MaximumCost)
             errors["minCost"] = "Debe estar entre 0 y 10.";
 
-        if (query.MaxCost is < 0 or > 10)
+        if (query.MaxCost is < GameRules.MinimumCost or > GameRules.MaximumCost)
             errors["maxCost"] = "Debe estar entre 0 y 10.";
 
-        if (query.Power is < -20 or > 20)
+        if (query.Power is < GameRules.MinimumPower or > GameRules.MaximumPower)
             errors["power"] = "Debe estar entre -20 y 20.";
 
-        if (query.MinPower is < -20 or > 20)
+        if (query.MinPower is < GameRules.MinimumPower or > GameRules.MaximumPower)
             errors["minPower"] =
                 "Debe estar entre -20 y 20.";
 
-        if (query.MaxPower is < -20 or > 20)
+        if (query.MaxPower is < GameRules.MinimumPower or > GameRules.MaximumPower)
             errors["maxPower"] =
                 "Debe estar entre -20 y 20.";
 

@@ -56,6 +56,7 @@ export interface Card {
   abilityParameters: string | Record<string, unknown>;
   imageStatus: string;
   imageUrl: string | null;
+  imageSmallUrl?: string | null;
 }
 
 /** Filtros combinados con AND; al continuar se envían solo searchId, after y pageSize. */

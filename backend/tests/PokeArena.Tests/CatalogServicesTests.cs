@@ -80,7 +80,7 @@ public sealed class CatalogServicesTests
     // Los dobles fallan si una solicitud rechazada llega a la persistencia o a las imágenes.
     private sealed class UnexpectedSearch : ICardSearchRepository
     {
-        public Task<CardSearchResult> SearchAsync(string actorId, CardSearchQuery query,
+        public Task<CardSearchResult?> SearchAsync(string actorId, CardSearchQuery query,
             CancellationToken cancellationToken = default) => throw new InvalidOperationException("Consulta inesperada.");
     }
 

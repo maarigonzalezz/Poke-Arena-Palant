@@ -1,30 +1,27 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using PokeArena.Application.Authentication;
 using PokeArena.Application.Catalog;
 using PokeArena.Infrastructure.Persistence;
+using PokeArena.Domain.Entities;
+using System.Linq.Expressions;
 
 namespace PokeArena.Infrastructure.Catalog;
 
 /// <summary>Combina catalogo y pertenencia en SQL sin cargar el inventario completo.</summary>
 public sealed class PostgresPlayerCatalogRepository(PokeArenaDbContext db) : IPlayerCatalogRepository
 {
+    public Task<Player?> FindPlayerAsync(Guid playerId, CancellationToken cancellationToken) =>
+        db.Players.AsNoTracking().SingleOrDefaultAsync(player => player.Id == playerId, cancellationToken);
+
     public async Task<PlayerCatalogPage> BrowseAsync(Guid playerId, PlayerCatalogQuery query,
-        CancellationToken cancellationToken)
+        Expression<Func<Card, bool>> visibility, CancellationToken cancellationToken)
     {
         // Conteo y pagina observan los mismos datos si la coleccion cambia durante la solicitud.
         await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        var active = await db.Players.Where(player => player.Id == playerId)
-            .Select(player => (bool?)player.Active).SingleOrDefaultAsync(cancellationToken);
-        if (active is null)
-            throw new AuthenticationFailure("account_not_found", "La cuenta ya no esta disponible.", 401);
-        if (!active.Value)
-            throw new AuthenticationFailure("account_disabled", "La cuenta esta deshabilitada.", 403);
 
         // El LEFT JOIN conserva cartas no poseidas y restringe la pertenencia al jugador del token.
         var cards =
-            from card in db.Cards.AsNoTracking()
-            where card.Active && card.ImageStatus == "Ready" && card.ImageOriginalPath != null
+            from card in db.Cards.AsNoTracking().Where(visibility)
             join ability in db.Abilities.AsNoTracking() on card.AbilityCode equals ability.Code
             join owned in db.PlayerCards.Where(entry => entry.PlayerId == playerId)
                 on card.Id equals owned.CardId into collection
@@ -44,7 +41,7 @@ public sealed class PostgresPlayerCatalogRepository(PokeArenaDbContext db) : IPl
                 row.Card.Id, row.Card.Code, row.Card.Name, row.Card.Cost, row.Card.Power,
                 row.Card.CardType, row.Card.Rarity, row.Card.ImageStatus, row.Card.ImageOriginalPath,
                 row.Ability.Code, row.Ability.Name, row.Ability.TriggerType, row.Ability.EffectType,
-                row.Ability.Parameters, row.Quantity))
+                row.Ability.Parameters, row.Quantity, row.Card.ImageSmallPath))
             .ToListAsync(cancellationToken);
 
         // Una fila extra permite saber si hay otra pagina sin devolverla al cliente.

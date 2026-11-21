@@ -1,4 +1,6 @@
 
+using PokeArena.Domain.Catalogs;
+
 namespace PokeArena.Application.Cards;
 
 /// <summary>Filtros combinados con AND o datos para continuar una búsqueda existente.</summary>
@@ -28,5 +30,5 @@ public sealed record CardSearchQuery
     // Última posición recibida; cero inicia la primera página.
     public long After { get; init; }
 
-    public int PageSize { get; init; } = 20;
+    public int PageSize { get; init; } = GameRules.AdminPageSize;
 }

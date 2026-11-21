@@ -68,6 +68,8 @@ public class CatalogFixture : IAsyncLifetime
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");
+                builder.ConfigureServices(services => services.AddControllers()
+                    .AddApplicationPart(typeof(FailureProbeController).Assembly));
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string,string?>
                 {
                     ["ConnectionStrings:Postgres"] = connection, ["Storage:Root"] = root,

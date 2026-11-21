@@ -179,13 +179,16 @@ public sealed class AuthenticationTests(AuthenticationFixture fixture)
         Assert.False(repeated!.IsNewPlayer); Assert.Equal(125, repeated.Player.Elo);
         Assert.Equal(sessions[0].Player.Id, repeated.Player.Id);
         Assert.True(repeated.InitialCollection.Completed); Assert.Equal(1000, repeated.Player.Cubes);
+        Assert.True(repeated.InitialCollection.GrantedNow);
         Assert.Equal(15, await fixture.Count("SELECT COUNT(*) FROM player_cards"));
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));
         // Los ingresos posteriores conservan el saldo gastado y no vuelven a entregar cartas.
         await fixture.Execute($"UPDATE players SET cubes=0 WHERE id='{repeated.Player.Id}'");
         var afterSpending = await client.PostAsJsonAsync("/api/auth/google", body);
         Assert.Equal(HttpStatusCode.OK, afterSpending.StatusCode);
-        Assert.Equal(0, (await afterSpending.Content.ReadFromJsonAsync<LoginResult>())!.Player.Cubes);
+        var laterLogin = (await afterSpending.Content.ReadFromJsonAsync<LoginResult>())!;
+        Assert.Equal(0, laterLogin.Player.Cubes);
+        Assert.False(laterLogin.InitialCollection.GrantedNow);
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));
         client.DefaultRequestHeaders.Authorization = new("Bearer", body.idToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);

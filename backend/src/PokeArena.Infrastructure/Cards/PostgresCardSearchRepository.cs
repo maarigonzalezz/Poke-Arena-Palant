@@ -3,13 +3,14 @@ using Npgsql;
 using PokeArena.Application.Cards;
 using PokeArena.Domain.Entities;
 using PokeArena.Infrastructure.Persistence;
+using PokeArena.Domain.Catalogs;
 
 namespace PokeArena.Infrastructure.Cards;
 
 /// <summary>Construye filtros con LINQ y conserva los resultados en sesiones estables.</summary>
 public sealed class PostgresCardSearchRepository(PokeArenaDbContext db) : ICardSearchRepository
 {
-    public async Task<CardSearchResult> SearchAsync(string actorId, CardSearchQuery query,
+    public async Task<CardSearchResult?> SearchAsync(string actorId, CardSearchQuery query,
         CancellationToken cancellationToken = default)
     {
         if (query.SearchId.HasValue)
@@ -17,14 +18,14 @@ public sealed class PostgresCardSearchRepository(PokeArenaDbContext db) : ICardS
 
         var session = new CardSearchSession
         {
-            Id = Guid.NewGuid(), ActorId = actorId, ExpiresAt = DateTime.UtcNow.AddMinutes(30)
+            Id = Guid.NewGuid(), ActorId = actorId, ExpiresAt = DateTime.UtcNow.AddMinutes(GameRules.SearchSessionLifetimeMinutes)
         };
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
         {
             db.CardSearchSessions.Add(session);
             await db.SaveChangesAsync(cancellationToken);
             // CreatedAt viene del servidor; el vencimiento usa el mismo reloj que las lecturas.
-            session.ExpiresAt = db.Entry(session).Property<DateTime>("CreatedAt").CurrentValue.AddMinutes(30);
+            session.ExpiresAt = db.Entry(session).Property<DateTime>("CreatedAt").CurrentValue.AddMinutes(GameRules.SearchSessionLifetimeMinutes);
 
             // EF genera filtros y parámetros; INSERT SELECT evita cargar miles de IDs en la aplicación.
             await using var selection = Filter(query).Select(card => new { CardId = card.Id }).CreateDbCommand();
@@ -77,7 +78,7 @@ public sealed class PostgresCardSearchRepository(PokeArenaDbContext db) : ICardS
         return cards;
     }
 
-    private async Task<CardSearchResult> ReadPageAsync(string actorId, Guid searchId, long after,
+    private async Task<CardSearchResult?> ReadPageAsync(string actorId, Guid searchId, long after,
         int pageSize, CancellationToken cancellationToken)
     {
         // Una sola consulta conserva las sesiones vacías y comprueba propiedad y vigencia.
@@ -100,7 +101,7 @@ public sealed class PostgresCardSearchRepository(PokeArenaDbContext db) : ICardS
                 AbilityCode = ability.Code, AbilityName = ability.Name, ability.TriggerType,
                 ability.EffectType, ability.Parameters
             }).ToListAsync(cancellationToken);
-        if (rows.Count == 0) throw new KeyNotFoundException("La búsqueda no existe o ha expirado.");
+        if (rows.Count == 0) return null;
 
         var items = rows.Where(row => row.Position.HasValue).Select(row => new CardSearchItem(
             row.Code, row.Name, row.Cost!.Value, row.Power!.Value, row.CardType, row.Rarity,

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { CARD_TYPES } from "../types/catalogs";
 import logo from "../assets/images (3).jpg";
-import { TYPE_MARKS, type PlayerCatalogCard } from "./playerCatalogTypes";
+import { type PlayerCatalogCard } from "./playerCatalogTypes";
 import { PLAYER_TEST_CARDS, STARTING_CUBE_BALANCE } from "./playerTestData";
 import { usePlayerCardPage } from "../hooks/usePlayerCardPage";
 import type { CardType } from "../types/catalogs";
@@ -9,8 +9,11 @@ import type { CardType } from "../types/catalogs";
 type Stage = "login" | "welcome" | "game";
 type Section = "catalog" | "collection" | "decks";
 
-const PAGE_SIZE = 15;
-const COLLECTION_PAGE_SIZE = 12;
+import PlayerCard from "../components/PlayerCard";
+import { GAME_RULES } from "../constants/gameRules";
+
+const PAGE_SIZE = GAME_RULES.catalogPageSize;
+const COLLECTION_PAGE_SIZE = GAME_RULES.collectionPageSize;
 
 interface PlayerExperiencePageProps {
   onOpenAdmin: () => void;
@@ -20,6 +23,7 @@ interface PlayerExperiencePageProps {
   loginButton?: ReactNode;
   loginError?: string;
   loginStatus?: string;
+  initialCollectionMessage?: string | null;
   onSaveDeck?: (name: string, cardCodes: string[]) => Promise<void>;
   cards?: PlayerCatalogCard[];
   remoteData?: boolean;
@@ -36,6 +40,7 @@ export default function PlayerExperiencePage({
   loginButton,
   loginError: externalLoginError,
   loginStatus,
+  initialCollectionMessage,
   onSaveDeck,
   cards: initialCards = PLAYER_TEST_CARDS,
   remoteData = false,
@@ -90,7 +95,7 @@ export default function PlayerExperiencePage({
     setDeckError("");
     setDeckCards((current) => current.includes(code)
       ? current.filter((cardCode) => cardCode !== code)
-      : current.length < 12 ? [...current, code] : current);
+      : current.length < GAME_RULES.deckSize ? [...current, code] : current);
   }
 
   async function signIn() {
@@ -107,7 +112,7 @@ export default function PlayerExperiencePage({
   }
 
   async function saveDeck() {
-    if (deckCards.length !== 12 || !deckName.trim()) return;
+    if (deckCards.length !== GAME_RULES.deckSize || !deckName.trim()) return;
 
     setDeckError("");
     setDeckSaved(false);
@@ -186,8 +191,8 @@ export default function PlayerExperiencePage({
             {remoteData && <PageStatus data={collectionPage} />}
             {ownedCards.length > 0 ? (
               <div className="mini-card-row">
-                {ownedCards.slice(0, 8).map((card) => <MiniCard key={card.code} card={card} />)}
-                {ownedCount > 8 && <span className="more-cards">+{ownedCount - 8}</span>}
+                {ownedCards.slice(0, GAME_RULES.welcomePreviewCount).map((card) => <PlayerCard key={card.code} card={card} variant="mini" />)}
+                {ownedCount > GAME_RULES.welcomePreviewCount && <span className="more-cards">+{ownedCount - GAME_RULES.welcomePreviewCount}</span>}
               </div>
             ) : !collectionPage.loading && !collectionPage.error && <p className="player-empty-inline">No hay cartas para mostrar.</p>}
           </div>
@@ -227,7 +232,7 @@ export default function PlayerExperiencePage({
               onClick={() => setSection(key)} aria-current={section === key ? "page" : undefined}>
               <span className="player-nav-mark" aria-hidden="true">{mark}</span>
               <span>{label}</span>
-              {key === "decks" && <span className="nav-count">{deckCards.length}/12</span>}
+              {key === "decks" && <span className="nav-count">{deckCards.length}/{GAME_RULES.deckSize}</span>}
             </button>
           ))}
         </nav>
@@ -236,12 +241,13 @@ export default function PlayerExperiencePage({
           <span className="arena-mark" aria-hidden="true" />
           <strong>Tu colección</strong>
           <span>{ownedCount} cartas disponibles</span>
-          <div className="collection-meter"><span style={{ width: `${Math.min(ownedCount / 24 * 100, 100)}%` }} /></div>
+          <div className="collection-meter"><span style={{ width: `${Math.min(ownedCount / GAME_RULES.initialCollectionSize * 100, 100)}%` }} /></div>
         </div>
         <button type="button" className="player-admin-link" onClick={onOpenAdmin}>Estudio administrativo</button>
       </aside>
 
       <main className="player-main">
+        {initialCollectionMessage && <p className="alert" role="status">{initialCollectionMessage}</p>}
         <header className="player-topbar">
           <div className="player-breadcrumb">Poké-Arena <span>/</span> <strong>{sectionTitles[section]}</strong></div>
           <div className="player-account">
@@ -274,7 +280,7 @@ export default function PlayerExperiencePage({
               <label>Costo de energía
                 <select value={costFilter} onChange={(event) => updateFilters(() => setCostFilter(event.target.value))}>
                   <option value="">Cualquier costo</option>
-                  {Array.from({ length: 11 }, (_, cost) => <option key={cost} value={cost}>{cost} {cost === 1 ? "energía" : "energías"}</option>)}
+                  {Array.from({ length: GAME_RULES.maximumCost + 1 }, (_, cost) => <option key={cost} value={cost}>{cost} {cost === 1 ? "energía" : "energías"}</option>)}
                 </select>
               </label>
               <label className="owned-filter">
@@ -317,7 +323,7 @@ export default function PlayerExperiencePage({
             {remoteData && <PageStatus data={collectionPage} />}
             <div className="player-card-grid collection-grid">
               {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
-                selected={deckCards.includes(card.code)} canAdd={deckCards.length < 12 || deckCards.includes(card.code)}
+                selected={deckCards.includes(card.code)} canAdd={deckCards.length < GAME_RULES.deckSize || deckCards.includes(card.code)}
                 onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
             {remoteData && <ServerPagination data={collectionPage} />}
@@ -329,17 +335,17 @@ export default function PlayerExperiencePage({
           <section className="player-page deck-page">
             <header className="player-page-heading">
               <div><p className="eyebrow">Prepara tu estrategia</p><h1>Construye tu mazo</h1>
-                <p>Elige 12 cartas de las que ya tienes en tu colección.</p></div>
-              <div className="deck-count-card"><strong>{deckCards.length}<span>/12</span></strong><small>cartas seleccionadas</small></div>
+                <p>Elige {GAME_RULES.deckSize} cartas de las que ya tienes en tu colección.</p></div>
+              <div className="deck-count-card"><strong>{deckCards.length}<span>/{GAME_RULES.deckSize}</span></strong><small>cartas seleccionadas</small></div>
             </header>
             <div className="deck-editor panel">
-              <label>Nombre del mazo<input value={deckName} maxLength={40} onChange={(event) => {
+              <label>Nombre del mazo<input value={deckName} maxLength={GAME_RULES.maximumDeckNameLength} onChange={(event) => {
                 setDeckName(event.target.value);
                 setDeckSaved(false);
               }} /></label>
-              <div className="deck-progress" aria-label={`${deckCards.length} de 12 cartas seleccionadas`}><span style={{ width: `${deckCards.length / 12 * 100}%` }} /></div>
+              <div className="deck-progress" aria-label={`${deckCards.length} de ${GAME_RULES.deckSize} cartas seleccionadas`}><span style={{ width: `${deckCards.length / GAME_RULES.deckSize * 100}%` }} /></div>
               <div className="deck-slots" aria-label="Espacios del mazo">
-                {Array.from({ length: 12 }, (_, index) => {
+                {Array.from({ length: GAME_RULES.deckSize }, (_, index) => {
                   const card = ownedCards.find((owned) => owned.code === deckCards[index]);
                   return <div key={index} className={`deck-slot ${card ? "is-filled" : ""}`}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
@@ -348,8 +354,8 @@ export default function PlayerExperiencePage({
                 })}
               </div>
               <div className="deck-actions">
-                <span>{deckCards.length < 12 ? `Te faltan ${12 - deckCards.length} cartas para completar tu mazo.` : "¡Mazo completo! Ya puedes guardarlo."}</span>
-                <button type="button" className="player-primary" disabled={deckCards.length !== 12 || !deckName.trim()}
+                <span>{deckCards.length < GAME_RULES.deckSize ? `Te faltan ${GAME_RULES.deckSize - deckCards.length} cartas para completar tu mazo.` : "¡Mazo completo! Ya puedes guardarlo."}</span>
+                <button type="button" className="player-primary" disabled={deckCards.length !== GAME_RULES.deckSize || !deckName.trim()}
                   onClick={() => void saveDeck()}>Guardar mazo</button>
               </div>
               {deckSaved && <p className="alert success" role="status">“{deckName}” se guardó correctamente.</p>}
@@ -358,7 +364,7 @@ export default function PlayerExperiencePage({
             <div className="section-heading deck-pick-heading"><div><h2>Cartas disponibles</h2><p>Solo puedes agregar cartas de tu colección.</p></div><span>{ownedCards.length} cartas propias</span></div>
             <div className="player-card-grid deck-pick-grid">
               {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
-                selected={deckCards.includes(card.code)} canAdd={deckCards.length < 12 || deckCards.includes(card.code)}
+                selected={deckCards.includes(card.code)} canAdd={deckCards.length < GAME_RULES.deckSize || deckCards.includes(card.code)}
                 onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
             {remoteData && <><PageStatus data={collectionPage} /><ServerPagination data={collectionPage} /></>}
@@ -387,43 +393,4 @@ function ServerPagination({ data }: { data: ReturnType<typeof usePlayerCardPage>
       <button type="button" disabled={data.nextPosition === null} onClick={data.next}>Siguiente</button>
     </div>
   </div>;
-}
-
-function MiniCard({ card }: { card: PlayerCatalogCard }) {
-  return <div className={`mini-card type-${card.type.toLowerCase()}`} title={card.name}>
-    <span>{TYPE_MARKS[card.type]}</span>
-  </div>;
-}
-
-function PlayerCard({ card, quantity, selected, canAdd, onDeckToggle }: {
-  card: PlayerCatalogCard;
-  quantity: number;
-  selected?: boolean;
-  canAdd?: boolean;
-  onDeckToggle?: () => void;
-}) {
-  return (
-    <article className={`player-card type-${card.type.toLowerCase()}`} data-type={card.type}>
-      <div className="player-card-art">
-        <span className="player-card-code">{card.code}</span>
-        {card.imageUrl && <img className="player-card-image" src={card.imageUrl} alt="" />}
-        <span className="player-card-symbol" aria-hidden="true">{TYPE_MARKS[card.type]}</span>
-        <span className="player-card-art-name">{card.name}</span>
-        <span className="player-card-type">{card.type}</span>
-      </div>
-      <div className="player-card-content">
-        <div className="player-card-title"><h3>{card.name}</h3><span className={`rarity-tag rarity-${card.rarity.toLowerCase().replace(" ", "-")}`}>{card.rarity}</span></div>
-        <p className="player-card-ability">{card.abilityName}</p>
-        <div className="player-card-stats"><span><small>COSTO</small><strong><span aria-hidden="true">⚡︎</span> {card.cost}</strong></span><span><small>PODER</small><strong>✦ {card.power}</strong></span></div>
-        <div className={`owned-status ${quantity ? "is-owned" : ""}`}>
-          <span aria-hidden="true">{quantity ? "✓" : "○"}</span>
-          {quantity ? `En tu colección · ${quantity} ${quantity === 1 ? "copia" : "copias"}` : "Aún no la tienes"}
-        </div>
-        {onDeckToggle && <button type="button" className={`deck-toggle ${selected ? "is-selected" : ""}`}
-          disabled={!quantity || (!selected && !canAdd)} onClick={onDeckToggle}>
-          {selected ? "Quitar del mazo" : canAdd ? "＋ Agregar al mazo" : "Mazo completo"}
-        </button>}
-      </div>
-    </article>
-  );
 }

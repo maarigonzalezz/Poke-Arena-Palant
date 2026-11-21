@@ -16,6 +16,12 @@ export interface LoginResult {
   expiresAt: string;
   player: PlayerProfile;
   isNewPlayer: boolean;
+  initialCollection: {
+    status: string;
+    completed: boolean;
+    grantedNow: boolean;
+    message: string | null;
+  };
 }
 
 export interface LoginConfiguration {

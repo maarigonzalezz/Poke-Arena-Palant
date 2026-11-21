@@ -5,6 +5,20 @@ namespace PokeArena.Tests.Locations;
 /// <summary>Verifica las reglas de validación para la creación de ubicaciones.</summary>
 public sealed class LocationValidatorTests
 {
+    // Las restricciones se aplican también cuando un caso de uso se invoca sin HTTP.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Oversized_description_or_parameters_are_rejected_in_application(bool description)
+    {
+        var request = new CreateLocationRequest {
+            Name = "Bosque", Description = description ? new string('a', 10001) : "Ubicación",
+            MaxCards = 4, EnergyMode = "Fixed", ExtraEnergy = 0, EffectType = "None",
+            EffectParameters = description ? "{}" : "{}" + new string(' ', 4096)
+        };
+        Assert.NotEmpty(LocationValidator.Validate(request));
+    }
+
     /// <summary>Comprueba que una solicitud válida no genere errores.</summary>
     [Fact]
     public void Validate_WithValidLocation_ReturnsNoErrors()

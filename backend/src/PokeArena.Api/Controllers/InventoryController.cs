@@ -26,7 +26,6 @@ public sealed class InventoryController(InventoryService inventory) : Controller
     {
         if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var playerId) || playerId == Guid.Empty)
             return Unauthorized();
-        if (after < 0) return BadRequest(new { message = "after debe ser cero o positivo." });
         return Ok(await inventory.GetCubeHistoryAsync(playerId, after, cancellationToken));
     }
 }

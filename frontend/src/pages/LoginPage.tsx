@@ -94,7 +94,8 @@ export default function LoginPage() {
     return (
       <PlayerExperiencePage
         key="authenticated"
-        initialStage="welcome"
+        initialStage={session.initialCollection.grantedNow ? "welcome" : "game"}
+        initialCollectionMessage={session.initialCollection.message}
         remoteData
         cubeBalance={session.player.cubes}
         playerName={session.player.displayName ?? "Jugador"}

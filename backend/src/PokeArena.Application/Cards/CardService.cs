@@ -6,11 +6,12 @@ namespace PokeArena.Application.Cards;
 public sealed class CardService(CatalogValidationService validation, ICardSearchRepository search,
     ICatalogTransaction transactions, IImageStore images)
 {
-    public Task<CardSearchResult> SearchAsync(string actor, CardSearchQuery query, CancellationToken cancellationToken)
+    public async Task<CardSearchResult> SearchAsync(string actor, CardSearchQuery query, CancellationToken cancellationToken)
     {
         // Una consulta inválida no alcanza el repositorio de búsqueda.
         validation.ValidateSearch(query);
-        return search.SearchAsync(actor, query, cancellationToken);
+        return await search.SearchAsync(actor, query, cancellationToken)
+            ?? throw new KeyNotFoundException("La búsqueda no existe o ha expirado.");
     }
 
     public async Task<CardCreateResult> CreateAsync(string actor, CardCreateQuery query, ImageUpload image,

@@ -19,6 +19,8 @@ using PokeArena.Infrastructure.Inventory;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(options => options.Filters.Add<CatalogExceptionFilter>());
+builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // CORS permite que el frontend autorizado consulte la API desde otro origen.
 builder.Services.AddCors(options =>
@@ -67,6 +69,8 @@ builder.Services.AddScoped<IPlayerCatalogRepository, PostgresPlayerCatalogReposi
 builder.Services.AddPlatformAuthentication(builder.Environment);
 
 var app = builder.Build();
+// Cubre excepciones fuera de MVC sin exponer trazas ni datos internos.
+app.UseExceptionHandler();
 
 var filesDirectory = StorageRoot(app.Configuration, app.Environment);
 Directory.CreateDirectory(filesDirectory);

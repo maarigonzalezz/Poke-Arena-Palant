@@ -14,7 +14,7 @@ public sealed class LoginService(IGoogleIdentityVerifier google, IPlayerReposito
         tokens.EnsureConfigured();
         var identity = await google.VerifyAsync(idToken, cancellationToken);
         var registration = await players.GetOrCreateAsync(identity, cancellationToken);
-        EnsureActive(registration.Player);
+        PlayerAccess.RequireActive(registration.Player);
         // La cuenta ya existe; una entrega pendiente se intenta también en ingresos posteriores.
         var initialCollection = await inventory.EnsureInitialCollectionAsync(registration.Player.Id, cancellationToken);
         var profile = await GetProfileAsync(registration.Player.Id, cancellationToken);
@@ -25,16 +25,8 @@ public sealed class LoginService(IGoogleIdentityVerifier google, IPlayerReposito
 
     public async Task<PlayerProfile> GetProfileAsync(Guid id, CancellationToken cancellationToken)
     {
-        var player = await players.FindAsync(id, cancellationToken)
-            ?? throw new AuthenticationFailure("account_not_found", "La cuenta ya no está disponible.", 401);
-        EnsureActive(player);
+        var player = PlayerAccess.RequireActive(await players.FindAsync(id, cancellationToken));
         return Profile(player);
-    }
-
-    private static void EnsureActive(Domain.Entities.Player player)
-    {
-        if (!player.Active)
-            throw new AuthenticationFailure("account_disabled", "La cuenta está deshabilitada.", 403);
     }
 
     private static PlayerProfile Profile(Domain.Entities.Player player) =>

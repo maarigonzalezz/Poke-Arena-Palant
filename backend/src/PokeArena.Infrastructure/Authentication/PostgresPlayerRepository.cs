@@ -17,12 +17,7 @@ public sealed class PostgresPlayerRepository(PokeArenaDbContext db) : IPlayerRep
         var player = await FindIdentityAsync(identity, cancellationToken);
         if (player is null)
         {
-            player = new Player
-            {
-                Id = Guid.NewGuid(), IdentityProvider = identity.Provider, ProviderSubject = identity.Subject,
-                Email = identity.Email, DisplayName = identity.DisplayName, Role = "Player", Elo = 0, Cubes = 0,
-                Active = true, CreatedAt = DateTime.UtcNow, LastLoginAt = DateTime.UtcNow
-            };
+            player = Player.Create(identity.Provider, identity.Subject, identity.Email, identity.DisplayName);
             db.Players.Add(player);
             try
             {
@@ -40,14 +35,8 @@ public sealed class PostgresPlayerRepository(PokeArenaDbContext db) : IPlayerRep
                 player = existing;
             }
         }
-        if (player.Active)
-        {
-            // Solo cambian datos del perfil; rol y Elo conservan su valor almacenado.
-            player.Email = identity.Email;
-            player.DisplayName = identity.DisplayName;
-            player.LastLoginAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-        }
+        player.RecordLogin(identity.Email, identity.DisplayName);
+        await db.SaveChangesAsync(cancellationToken);
         return new PlayerRegistration(player, false);
     }
 

@@ -24,21 +24,20 @@ internal sealed class PostgresCardCreateRepository(PokeArenaDbContext db) : ICar
             throw new CatalogConflictException("No existe un contador para este tipo de carta.");
 
         // Reconcilia el contador con cartas importadas sin cargar el catálogo en memoria.
-        var pattern = $"^PKA-{prefix}-[0-9]{{3,}}$";
+        var pattern = $"^PKA-{prefix}-[0-9]{{{CardCodes.MinimumDigits},}}$";
         var lastExisting = await db.Cards.Where(x => x.CardType == query.Type && Regex.IsMatch(x.Code, pattern))
-            .Select(x => (long?)Convert.ToInt64(x.Code.Substring(8))).MaxAsync(cancellationToken) ?? 0;
-        var lastNumber = Math.Max(sequence.LastNumber, lastExisting);
-        if (lastNumber >= int.MaxValue)
-            throw new CatalogConflictException("Se agotó el consecutivo disponible para este tipo.");
+            .Select(x => (long?)Convert.ToInt64(x.Code.Substring(CardCodes.NumericOffset))).MaxAsync(cancellationToken) ?? 0;
         // D3 conserva 001 y permite continuar con 1000 sin cambiar códigos existentes.
-        var number = (int)lastNumber + 1;
+        int number;
+        try { number = CardCodes.Next(sequence.LastNumber, lastExisting); }
+        catch (InvalidOperationException ex) { throw new CatalogConflictException(ex.Message); }
         sequence.LastNumber = number;
 
         var card = new Card
         {
-            Code = $"PKA-{prefix}-{number:D3}", Name = query.Name, Cost = query.Cost, Power = query.Power,
+            Code = CardCodes.Format(prefix, number), Name = query.Name, Cost = query.Cost, Power = query.Power,
             CardType = query.Type, Rarity = query.Rarity, AbilityCode = query.AbilityCode,
-            ImageStatus = "Ready", ImageOriginalPath = image.OriginalUrl, ImageSmallPath = image.SmallUrl,
+            ImageStatus = GameRules.ReadyImageStatus, ImageOriginalPath = image.OriginalUrl, ImageSmallPath = image.SmallUrl,
             CurrentVersion = 1, Active = true
         };
         db.Cards.Add(card);

@@ -5,7 +5,7 @@ namespace PokeArena.Application.Inventory;
 
 
 // El servidor informa si la entrega terminó o debe intentarse en otro ingreso.
-public sealed record InitialCollectionResult(string Status, string? Message = null)
+public sealed record InitialCollectionResult(string Status, string? Message = null, bool GrantedNow = false)
 {
     public bool Completed => Status == "Completed";
 }

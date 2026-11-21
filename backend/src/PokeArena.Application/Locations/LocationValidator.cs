@@ -15,7 +15,7 @@ public static class LocationValidator
         {
             errors.Add("El nombre es obligatorio.");
         }
-        else if (request.Name.Length > 120)
+        else if (request.Name.Length > GameRules.MaximumNameLength)
         {
             errors.Add(
                 "El nombre no puede superar los 120 caracteres.");
@@ -25,9 +25,13 @@ public static class LocationValidator
         {
             errors.Add("La descripción es obligatoria.");
         }
+        else if (request.Description.Length > GameRules.MaximumDescriptionLength)
+        {
+            errors.Add($"La descripción no puede superar los {GameRules.MaximumDescriptionLength} caracteres.");
+        }
 
         // Cero es una capacidad válida y significa que no se admiten cartas.
-        if (request.MaxCards < 0 || request.MaxCards > 5)
+        if (request.MaxCards < 0 || request.MaxCards > GameRules.MaximumCardsPerLocation)
         {
             errors.Add(
                 "El límite de cartas debe estar entre 0 y 5.");
@@ -40,13 +44,13 @@ public static class LocationValidator
                 "El modo de energía debe ser Fixed o PerCard.");
         }
         else if (request.EnergyMode == "Fixed"
-            && (request.ExtraEnergy < 0 || request.ExtraEnergy > 3))
+            && (request.ExtraEnergy < 0 || request.ExtraEnergy > GameRules.MaximumFixedEnergy))
         {
             errors.Add(
                 "La energía adicional debe estar entre 0 y 3 para el modo Fixed.");
         }
         else if (request.EnergyMode == "PerCard"
-            && (request.ExtraEnergy < 0 || request.ExtraEnergy > 2))
+            && (request.ExtraEnergy < 0 || request.ExtraEnergy > GameRules.MaximumPerCardEnergy))
         {
             errors.Add(
                 "La energía adicional debe estar entre 0 y 2 para el modo PerCard.");
@@ -68,6 +72,10 @@ public static class LocationValidator
         if (string.IsNullOrWhiteSpace(request.EffectParameters))
         {
             errors.Add("Los parámetros del efecto son obligatorios.");
+        }
+        else if (request.EffectParameters.Length > GameRules.MaximumEffectParametersLength)
+        {
+            errors.Add($"Los parámetros del efecto no pueden superar los {GameRules.MaximumEffectParametersLength} caracteres.");
         }
         else
         {

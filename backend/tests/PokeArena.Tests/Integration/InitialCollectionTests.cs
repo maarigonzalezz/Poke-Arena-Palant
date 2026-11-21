@@ -11,6 +11,19 @@ namespace PokeArena.Tests.Integration;
 [Trait("Category", "Integration")]
 public sealed class InitialCollectionTests(AuthenticationFixture fixture)
 {
+    [IntegrationFact]
+    public async Task Inventory_service_validates_identity_and_cursor_without_a_controller()
+    {
+        await using var scope = fixture.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var invalidPlayer = await Assert.ThrowsAsync<InventoryValidationException>(() =>
+            service.EnsureInitialCollectionAsync(Guid.Empty, CancellationToken.None));
+        Assert.Contains("playerId", invalidPlayer.Errors.Keys);
+        var invalidCursor = await Assert.ThrowsAsync<InventoryValidationException>(() =>
+            service.GetCubeHistoryAsync(Guid.NewGuid(), -1, CancellationToken.None));
+        Assert.Contains("after", invalidCursor.Errors.Keys);
+    }
+
     private async Task<PlayerRegistration> Register(string subject)
     {
         await using var scope = fixture.CreateScope();
@@ -51,7 +64,13 @@ public sealed class InitialCollectionTests(AuthenticationFixture fixture)
                    ('INACTIVE','Inactiva',1,1,'Fuego','Común','HAB-000',FALSE);
             """);
         var player = await Register("starter");
-        Assert.True((await Deliver(player.Player.Id)).Completed);
+        var firstDelivery = await Deliver(player.Player.Id);
+        Assert.True(firstDelivery.Completed);
+        Assert.True(firstDelivery.GrantedNow);
+        // Un nuevo ingreso nunca vuelve a mostrar la entrega ya registrada.
+        var nextLogin = await Deliver(player.Player.Id);
+        Assert.True(nextLogin.Completed);
+        Assert.False(nextLogin.GrantedNow);
         using var client = await Client(player);
         var result = await client.GetFromJsonAsync<PlayerProfileResult>("/api/player/inventory");
         Assert.Equal(1000, result!.Profile.Cubes);
@@ -74,6 +93,7 @@ public sealed class InitialCollectionTests(AuthenticationFixture fixture)
         var player = await Register("pending");
         var pending = await Deliver(player.Player.Id);
         Assert.Equal("PendingCatalog", pending.Status); Assert.False(pending.Completed); Assert.NotNull(pending.Message);
+        Assert.False(pending.GrantedNow);
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM players"));
         Assert.Equal(0, await fixture.Count("SELECT COUNT(*) FROM player_cards"));
         Assert.Equal(0, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));
@@ -81,7 +101,9 @@ public sealed class InitialCollectionTests(AuthenticationFixture fixture)
         await Seed(1, 15);
         var again = await Register("pending");
         Assert.False(again.IsNewPlayer);
-        Assert.True((await Deliver(again.Player.Id)).Completed);
+        var retry = await Deliver(again.Player.Id);
+        Assert.True(retry.Completed);
+        Assert.True(retry.GrantedNow);
         Assert.Equal(15, await fixture.Count("SELECT COUNT(*) FROM player_cards"));
     }
 
@@ -97,6 +119,7 @@ public sealed class InitialCollectionTests(AuthenticationFixture fixture)
                 .EnsureInitialCollectionAsync(registration.Player.Id, CancellationToken.None);
         }));
         Assert.All(results, result => Assert.True(result.Completed));
+        Assert.Single(results, result => result.GrantedNow);
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM players"));
         Assert.Equal(15, await fixture.Count("SELECT COUNT(*) FROM player_cards"));
         Assert.Equal(1, await fixture.Count("SELECT COUNT(*) FROM player_cube_movements"));

@@ -231,6 +231,9 @@ input[type='file']::file-selector-button { border: 0; padding: 9px 12px; border-
 .welcome-collection .section-heading > span { padding: 6px 9px; border-radius: 20px; background: #e9f5ee; color: #38724f; font-size: 8px; letter-spacing: .8px; font-weight: 750; }
 .mini-card-row { display: flex; gap: 8px; overflow: hidden; }
 .mini-card, .more-cards { flex: 0 0 52px; height: 65px; display: grid; place-items: center; border: 1px solid #ffffffa6; border-radius: 8px; background: linear-gradient(145deg, #f4c6a9, #be543c); color: white; font-size: 22px; box-shadow: 0 3px 9px #28162716; }
+.mini-card img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.card-image-missing { display: grid; place-items: center; padding: 4px; font-size: 10px; text-align: center; color: #475569; background: #e2e8f0; }
+.mini-card .card-image-missing { width: 100%; height: 100%; }
 .mini-card.type-agua { background: linear-gradient(145deg, #c0e8f7, #3985a5); }
 .mini-card.type-planta { background: linear-gradient(145deg, #c8e8b6, #55884e); }
 .mini-card.type-eléctrico { background: linear-gradient(145deg, #ffe8a6, #bb901d); }
