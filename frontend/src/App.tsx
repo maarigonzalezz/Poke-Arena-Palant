@@ -1,96 +1,127 @@
 
-import { useEffect, useState } from "react";
-import { checkBackend } from "./services/api";
+import { useState } from "react";
+import SearchCardPage from "./pages/SearchCardPage";
+import CreateCardPage from "./pages/CreateCardPage";
+import CreateLocationPage from "./pages/CreateLocationPage";
+import { IS_MOCK_MODE } from "./services/catalogApi";
+import { resetMockCatalog } from "./mocks/mockCatalogApi";
+import DevelopmentAuth from "./components/DevelopmentAuth";
+import Icon from "./components/Icon";
+import PlayerExperiencePage from "./pages/PlayerExperiencePage";
+import logo from "./assets/images (3).jpg";
 import "./App.css";
 
-type ConnectionStatus =
-  | "loading"
-  | "connected"
-  | "error";
+type Page = "search" | "card" | "location";
+type Experience = "player" | "admin";
 
-function App() {
-  const [status, setStatus] =
-    useState<ConnectionStatus>("loading");
+const pages: Record<Page, string> = {
+  search: "Buscar Carta",
+  card: "Crear Carta",
+  location: "Crear Ubicación",
+};
 
-  const [message, setMessage] = useState<string>(
-    "Comprobando conexión con el backend..."
+/** Organiza las pantallas del catálogo y los controles del modo simulado. */
+export default function App() {
+  const [experience, setExperience] = useState<Experience>(
+    window.location.pathname === "/admin" ? "admin" : "player"
   );
+  // La navegación cambia la pantalla mediante estado local, sin cambiar la URL.
+  const [page, setPage] = useState<Page>("search");
+  // Cambiar la key remonta la pantalla para recargar datos al cambiar de sesión.
+  const [version, setVersion] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
 
-  useEffect(() => {
-    async function verifyConnection() {
-      try {
-        const response = await checkBackend();
+  // Espera las escrituras locales y remonta la pantalla para descartar su estado anterior.
+  async function resetSimulation() {
+    if (!window.confirm("¿Restablecer solo las cartas y ubicaciones simuladas de este navegador?")) return;
+    setResetting(true);
+    setResetError("");
+    try {
+      await resetMockCatalog();
+      // Fuerza una nueva lectura después de restablecer los datos simulados.
+      setVersion(value => value + 1);
+      setPage("search");
+    } catch {
+      setResetError("No se pudieron restablecer los datos del navegador.");
+    } finally { setResetting(false); }
+  }
 
-        setStatus("connected");
-        setMessage(response.message);
-      } catch (error) {
-        console.error("Error de conexión:", error);
-
-        setStatus("error");
-        setMessage(
-          "No se pudo establecer conexión con el backend."
-        );
-      }
-    }
-
-    void verifyConnection();
-  }, []);
+  if (experience === "player") {
+    return <PlayerExperiencePage onOpenAdmin={() => setExperience("admin")} />;
+  }
 
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <h1>Poké-Arena</h1>
-        <p>Sistema de cartas coleccionables</p>
-      </header>
+    <div className="admin-app">
+      <a className="skip-link" href="#main-content">Ir al contenido</a>
+      <aside className="sidebar">
+        <div className="brand">
+          <img className="brand-logo" src={logo} alt="Poké-Arena" width="335" height="320" />
+          <span>ESTUDIO DEL CATÁLOGO</span>
+        </div>
 
-      <main className="app-main">
-        <section className="status-card">
-          <h2>Estado del sistema</h2>
+        <p className="nav-label">Administración</p>
+        {/* Los botones seleccionan qué pantalla administrativa se monta. */}
+        <nav aria-label="Administración del catálogo">
+          {(Object.entries(pages) as [Page, string][]).map(
+            ([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={page === key ? "nav-active" : ""}
+                onClick={() => setPage(key)}
+                aria-current={page === key ? "page" : undefined}
+              >
+                <Icon name={key} />
+                <span>{label}</span>
+                <span className="nav-arrow"><Icon name="arrow" /></span>
+              </button>
+            )
+          )}
+        </nav>
 
-          <div className={`connection-status ${status}`}>
-            {message}
+        <div className="sidebar-caption">
+          <span className="arena-mark" aria-hidden="true" />
+          <strong>Tu próxima partida<br />empieza aquí.</strong>
+          <p>Da forma a las cartas y los escenarios de Poké-Arena.</p>
+        </div>
+      </aside>
+
+      <main className="main-content" id="main-content" tabIndex={-1}>
+        <div className="topbar">
+          <span>Poké-Arena <span className="breadcrumb-divider">/</span> <strong>{pages[page]}</strong></span>
+          <div className="topbar-actions">
+            <button type="button" className="topbar-switch" onClick={() => setExperience("player")}>
+              Vista de jugador
+            </button>
+            <span className={`environment-badge ${IS_MOCK_MODE ? "is-simulation" : ""}`}>
+              <span aria-hidden="true" />{IS_MOCK_MODE ? "Simulación" : "Catálogo del juego"}
+            </span>
           </div>
-        </section>
-
-        <section className="features-card">
-          <h2>Funcionalidades del Sprint 1</h2>
-
-          <div className="features-grid">
-            <article className="feature">
-              <h3>Buscar Carta</h3>
-              <p>
-                Consultar cartas mediante filtros
-                de búsqueda combinados.
-              </p>
-              <span>F-02</span>
-            </article>
-
-            <article className="feature">
-              <h3>Crear Carta</h3>
-              <p>
-                Interfaz para registrar nuevas
-                cartas en el catálogo.
-              </p>
-              <span>F-02</span>
-            </article>
-
-            <article className="feature">
-              <h3>Crear Ubicación</h3>
-              <p>
-                Interfaz para configurar nuevas
-                ubicaciones de juego.
-              </p>
-              <span>F-03</span>
-            </article>
+        </div>
+        {/* El acceso con token manual se muestra solo durante desarrollo real. */}
+        {!IS_MOCK_MODE && import.meta.env.DEV && (
+          <DevelopmentAuth onChange={() => setVersion(value => value + 1)} />
+        )}
+        {IS_MOCK_MODE && (
+          <div className="simulation-banner" role="status">
+            <strong>Modo simulación activo.</strong>{" "}
+            Los registros se guardan en este navegador.
+            No se están utilizando PostgreSQL ni MongoDB.
+            <div className="actions">
+              <button type="button" disabled={resetting} onClick={() => void resetSimulation()}>
+                {resetting ? "Restableciendo..." : "Restablecer datos simulados"}
+              </button>
+            </div>
+            {resetError && <p role="alert">{resetError}</p>}
           </div>
-        </section>
+        )}
+
+        {/* Solo se monta la pantalla seleccionada; version fuerza su reinicio. */}
+        {page === "search" && <SearchCardPage key={version} />}
+        {page === "card" && <CreateCardPage key={version} />}
+        {page === "location" && <CreateLocationPage key={version} />}
       </main>
-
-      <footer className="app-footer">
-        Poké-Arena — Sprint 1
-      </footer>
     </div>
   );
 }
-
-export default App;

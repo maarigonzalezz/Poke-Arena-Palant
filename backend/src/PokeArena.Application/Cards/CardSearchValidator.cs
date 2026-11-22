@@ -1,0 +1,130 @@
+using PokeArena.Domain.Catalogs;
+
+namespace PokeArena.Application.Cards;
+
+/// <summary>Comprueba límites, catálogos permitidos y coherencia de los filtros y la paginación.</summary>
+public static class CardSearchValidator
+{
+    private static readonly HashSet<string> Rarities =
+    [
+        "Común",
+        "Poco común",
+        "Rara",
+        "Legendaria"
+    ];
+
+    /// <summary>Devuelve los errores por campo; un diccionario vacío indica criterios válidos.</summary>
+    public static Dictionary<string, string> Validate(
+        CardSearchQuery query)
+    {
+        var errors = new Dictionary<string, string>();
+
+        // Limita el texto aceptado por cada criterio antes de construir la consulta.
+        foreach (var (field, value, limit) in new[] {
+            ("code", query.Code, 20), ("name", query.Name, GameRules.MaximumNameLength),
+            ("abilityCode", query.AbilityCode, 20), ("abilityTrigger", query.AbilityTrigger, 50),
+            ("abilityEffect", query.AbilityEffect, 50) })
+            if (value?.Length > limit) errors[field] = $"Admite hasta {limit} caracteres.";
+
+        // Acota cuántas cartas pueden viajar en una sola respuesta.
+        if (query.PageSize < 1 || query.PageSize > GameRules.MaximumPageSize)
+        {
+            errors["pageSize"] =
+                "Debe estar entre 1 y 100.";
+        }
+
+        // Reserva espacio para sumar el tamaño de página sin desbordar el cursor.
+        if (query.After < 0 || query.After > long.MaxValue - GameRules.MaximumPageSize)
+        {
+            errors["after"] =
+                "La posición está fuera del rango permitido.";
+        }
+
+        if (query.SearchId is null && query.After != 0)
+        {
+            errors["after"] =
+                "Se requiere searchId para continuar.";
+        }
+
+        if (query.Cost is < GameRules.MinimumCost or > GameRules.MaximumCost)
+            errors["cost"] = "Debe estar entre 0 y 10.";
+
+        if (query.MinCost is < GameRules.MinimumCost or > GameRules.MaximumCost)
+            errors["minCost"] = "Debe estar entre 0 y 10.";
+
+        if (query.MaxCost is < GameRules.MinimumCost or > GameRules.MaximumCost)
+            errors["maxCost"] = "Debe estar entre 0 y 10.";
+
+        if (query.Power is < GameRules.MinimumPower or > GameRules.MaximumPower)
+            errors["power"] = "Debe estar entre -20 y 20.";
+
+        if (query.MinPower is < GameRules.MinimumPower or > GameRules.MaximumPower)
+            errors["minPower"] =
+                "Debe estar entre -20 y 20.";
+
+        if (query.MaxPower is < GameRules.MinimumPower or > GameRules.MaximumPower)
+            errors["maxPower"] =
+                "Debe estar entre -20 y 20.";
+
+        // Rechaza rangos invertidos aunque ambos extremos sean válidos por separado.
+        if (query.MinCost > query.MaxCost)
+            errors["costRange"] =
+                "El mínimo supera al máximo.";
+
+        if (query.MinPower > query.MaxPower)
+            errors["powerRange"] =
+                "El mínimo supera al máximo.";
+
+        if (query.Cost.HasValue &&
+            (query.MinCost.HasValue ||
+             query.MaxCost.HasValue))
+        {
+            errors["cost"] =
+                "Use un valor exacto o un rango.";
+        }
+
+        if (query.Power.HasValue &&
+            (query.MinPower.HasValue ||
+             query.MaxPower.HasValue))
+        {
+            errors["power"] =
+                "Use un valor exacto o un rango.";
+        }
+
+        if (query.Type is not null &&
+            !CardTypes.Contains(query.Type))
+        {
+            errors["type"] = "Tipo no permitido.";
+        }
+
+        if (query.Rarity is not null &&
+            !Rarities.Contains(query.Rarity))
+        {
+            errors["rarity"] = "Rareza no permitida.";
+        }
+
+        // Continuar una sesión exige conservar los filtros de su consulta inicial.
+        if (query.SearchId.HasValue)
+        {
+            if (query.Code is not null ||
+                query.Name is not null ||
+                query.Cost.HasValue ||
+                query.MinCost.HasValue ||
+                query.MaxCost.HasValue ||
+                query.Power.HasValue ||
+                query.MinPower.HasValue ||
+                query.MaxPower.HasValue ||
+                query.Type is not null ||
+                query.Rarity is not null ||
+                query.AbilityCode is not null ||
+                query.AbilityTrigger is not null ||
+                query.AbilityEffect is not null)
+            {
+                errors["searchId"] =
+                    "No envíe filtros al continuar una búsqueda.";
+            }
+        }
+
+        return errors;
+    }
+}

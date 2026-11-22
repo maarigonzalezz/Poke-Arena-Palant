@@ -1,0 +1,66 @@
+
+# Bases de datos locales con volúmenes persistentes y credenciales tomadas del entorno.
+services:
+  postgres:
+    image: postgres:17
+    container_name: pokearena-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: pokearena
+      POSTGRES_USER: pokearena
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+
+    ports:
+      - "127.0.0.1:55432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/postgres/migrations/001_integrate_catalog.sql:/docker-entrypoint-initdb.d/zz_integrate_catalog.sql:ro
+      - ./database/postgres/migrations/002_card_search_sessions.sql:/docker-entrypoint-initdb.d/zzz_card_search_sessions.sql:ro
+      - ./database/postgres/migrations/003_google_login.sql:/docker-entrypoint-initdb.d/zzzz_google_login.sql:ro
+      - ./database/postgres/migrations/004_catalog_scale.sql:/docker-entrypoint-initdb.d/zzzzz_catalog_scale.sql:ro
+      - ./database/postgres/migrations/005_player_inventory.sql:/docker-entrypoint-initdb.d/zzzzzz_player_inventory.sql:ro
+      - ./database/postgres/migrations/006_test_cards.sql:/docker-entrypoint-initdb.d/zzzzzzz_test_cards.sql:ro
+      - ./database/postgres/migrations/007_initial_collection.sql:/docker-entrypoint-initdb.d/zzzzzzzz_initial_collection.sql:ro
+      - ./database/postgres/migrations/008_matchmaking.sql:/docker-entrypoint-initdb.d/zzzzzzzzz_matchmaking.sql:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U pokearena -d pokearena"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:8
+    container_name: pokearena-mongodb
+    restart: unless-stopped
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: pokearena
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?Define MONGO_PASSWORD}
+
+    ports:
+      - "127.0.0.1:27017:27017"
+
+    volumes:
+      - mongo_data:/data/db
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u pokearena -p \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  mongo_data:

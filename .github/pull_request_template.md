@@ -1,6 +1,6 @@
 ## Description
 
-<!-- Provide a clear summary of what this PR does and why. -->
+<!-- Describa el problema y el comportamiento resultante. No deje esta sección vacía. -->
 
 ## Type of Change
 
@@ -13,7 +13,7 @@
 
 ## Changes Made
 
-<!-- List the specific changes. Be precise. -->
+<!-- Enumere los cambios que debe revisar una persona que no conoce esta conversación. -->
 
 -
 -
@@ -21,7 +21,7 @@
 
 ## How to Test
 
-<!-- Step-by-step instructions for reviewers to verify this works. -->
+<!-- Incluya comandos, resultado y evidencia. Si no aplica una prueba, explique por qué. -->
 
 1.
 2.
@@ -29,17 +29,18 @@
 
 ## Checklist
 
-- [ ] Code follows the project's style guidelines
-- [ ] Self-reviewed the code for obvious errors
-- [ ] Added or updated tests where applicable
-- [ ] Existing tests pass locally
-- [ ] Updated documentation if needed
-- [ ] No new warnings or console errors introduced
+- [ ] Revisé el diff completo y el destino de la rama.
+- [ ] Las reglas de negocio están en la capa lógica y los repositorios solo persisten.
+- [ ] Verifiqué autenticación, propiedad de datos y errores cuando corresponde.
+- [ ] Probé los criterios de aceptación y los casos de concurrencia relevantes.
+- [ ] Ejecuté las comprobaciones aplicables y adjunté el resultado.
+- [ ] Documenté cambios de contratos, migraciones y configuración cuando corresponde.
+- [ ] No incluí credenciales, archivos .env privados ni datos de usuarios.
 
 ## Related Issues
 
-<!-- Link related tickets or issues. Use "Closes #123" to auto-close. -->
+<!-- Indique la historia de usuario o incidencia. Use Closes #123 solo para issues de GitHub. -->
 
 ## Screenshots
 
-<!-- If applicable, add screenshots or screen recordings. -->
+<!-- Incluya capturas si cambió la interfaz. La aprobación real se registra con GitHub Review. -->

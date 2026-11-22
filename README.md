@@ -1,9 +1,4 @@
 # Poke-Arena-Palant
 
-Para ejecutarlo, abran dos terminales:
-Primera
-dotnet run --project backend/src/PokeArena.Api --launch-profile http
-Segunda
-cd frontend
-npm.cmd run dev
-Abre http://localhost:5173
+El flujo de ramas, las entregas y las revisiones se describen en [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
+La activación de protecciones requiere los pasos de [.github/SETUP.md](.github/SETUP.md).

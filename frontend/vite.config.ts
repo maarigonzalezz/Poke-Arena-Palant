@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// https://vite.dev/config/
+// Mantiene el puerto autorizado por CORS; falla si otra instancia ya lo ocupa.
 export default defineConfig({
   plugins: [react()],
   server: {

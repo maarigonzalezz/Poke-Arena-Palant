@@ -1,0 +1,6 @@
+# GitHub utiliza el archivo de la rama destino y solicita revisión al salir de Draft.
+* @maarigonzalezz @diegosalasov @SpaceBa13 @fredeos
+
+# Las políticas del repositorio también requieren revisión de sus responsables.
+/.github/ @maarigonzalezz @diegosalasov @SpaceBa13 @fredeos
+/scripts/configure-github.mjs @maarigonzalezz @diegosalasov @SpaceBa13 @fredeos

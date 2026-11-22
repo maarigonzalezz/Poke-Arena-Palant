@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.10" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
@@ -20,6 +21,19 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PokeArena.Application\PokeArena.Application.csproj" />
+    <ProjectReference Include="..\..\src\PokeArena.Infrastructure\PokeArena.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\PokeArena.Api\PokeArena.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../../database/postgres/init.sql" Link="TestData/init.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/001_integrate_catalog.sql" Link="TestData/integrate.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/002_card_search_sessions.sql" Link="TestData/search_sessions.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/003_google_login.sql" Link="TestData/google_login.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/004_catalog_scale.sql" Link="TestData/catalog_scale.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/005_player_inventory.sql" Link="TestData/player_inventory.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/007_initial_collection.sql" Link="TestData/initial_collection.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/008_matchmaking.sql" Link="TestData/matchmaking.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
