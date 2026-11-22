@@ -65,6 +65,7 @@ public class CatalogFixture : IAsyncLifetime
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/catalog_scale.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/player_inventory.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/initial_collection.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/matchmaking.sql")));
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");
@@ -73,6 +74,7 @@ public class CatalogFixture : IAsyncLifetime
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string,string?>
                 {
                     ["ConnectionStrings:Postgres"] = connection, ["Storage:Root"] = root,
+                    ["Matchmaking:RunWorker"] = "false",
                     ["Authentication:Platform:SigningKeyBase64"] = Convert.ToBase64String(key.Key),
                     ["Authentication:Google:ClientId"] = Environment.GetEnvironmentVariable("POKEARENA_GOOGLE_CLIENT_ID") ?? ""
                 }));
@@ -120,10 +122,15 @@ public class CatalogFixture : IAsyncLifetime
     public AsyncServiceScope CreateScope() => app!.Services.CreateAsyncScope();
     public HttpClient AnonymousClient() => app!.CreateClient();
 
+    // Arranca otra API real sobre la misma base para verificar el worker entre instancias.
+    public WebApplicationFactory<Program> MatchmakingInstance() =>
+        app!.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["Matchmaking:RunWorker"] = "true" })));
+
     // Reinicia únicamente la base desechable para que cada caso tenga datos controlados.
     public async Task Reset()
     {
-        await Execute("TRUNCATE cards, locations, card_search_sessions, idempotency_requests, players RESTART IDENTITY CASCADE; UPDATE card_code_sequences SET last_number=0;");
+        await Execute("TRUNCATE matches, cards, locations, card_search_sessions, idempotency_requests, players RESTART IDENTITY CASCADE; UPDATE card_code_sequences SET last_number=0;");
     }
 
     public async Task DisposeAsync()

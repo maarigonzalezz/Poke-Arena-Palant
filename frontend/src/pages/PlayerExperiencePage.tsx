@@ -7,10 +7,11 @@ import { usePlayerCardPage } from "../hooks/usePlayerCardPage";
 import type { CardType } from "../types/catalogs";
 
 type Stage = "login" | "welcome" | "game";
-type Section = "catalog" | "collection" | "decks";
+type Section = "catalog" | "collection" | "decks" | "matchmaking";
 
 import PlayerCard from "../components/PlayerCard";
 import { GAME_RULES } from "../constants/gameRules";
+import FindMatchPage from "./FindMatchPage";
 
 const PAGE_SIZE = GAME_RULES.catalogPageSize;
 const COLLECTION_PAGE_SIZE = GAME_RULES.collectionPageSize;
@@ -212,6 +213,7 @@ export default function PlayerExperiencePage({
     catalog: "Explorar catálogo",
     collection: "Mi colección",
     decks: "Constructor de mazos",
+    matchmaking: "Buscar partida",
   };
 
   return (
@@ -227,6 +229,7 @@ export default function PlayerExperiencePage({
             ["catalog", "Catálogo", "⌕"],
             ["collection", "Mi colección", "▤"],
             ["decks", "Mis mazos", "▧"],
+            ["matchmaking", "Buscar partida", "⚔"],
           ] as [Section, string, string][]).map(([key, label, mark]) => (
             <button key={key} type="button" className={section === key ? "nav-active" : ""}
               onClick={() => setSection(key)} aria-current={section === key ? "page" : undefined}>
@@ -263,6 +266,7 @@ export default function PlayerExperiencePage({
           </div>
         </header>
 
+        {section === "matchmaking" && <FindMatchPage />}
         {section === "catalog" && (
           <section className="player-page">
             <header className="player-page-heading">

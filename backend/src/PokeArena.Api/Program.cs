@@ -14,6 +14,8 @@ using PokeArena.Infrastructure.Catalog;
 using PokeArena.Infrastructure.Persistence;
 using PokeArena.Infrastructure.Cards;
 using PokeArena.Infrastructure.Inventory;
+using PokeArena.Application.Matchmaking;
+using PokeArena.Infrastructure.Matchmaking;
 
 // Punto de entrada: conecta HTTP, autenticación y repositorios del catálogo.
 var builder = WebApplication.CreateBuilder(args);
@@ -64,6 +66,12 @@ builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<IInventoryRepository, PostgresInventoryRepository>();
 builder.Services.AddScoped<PlayerCatalogService>();
 builder.Services.AddScoped<IPlayerCatalogRepository, PostgresPlayerCatalogRepository>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<MatchmakingService>();
+builder.Services.AddScoped<IMatchmakingDeckGuard>(services => services.GetRequiredService<MatchmakingService>());
+builder.Services.AddScoped<IMatchmakingRepository, PostgresMatchmakingRepository>();
+builder.Services.AddScoped<IMatchmakingDeckReader, PostgresMatchmakingDeckReader>();
+builder.Services.AddHostedService<MatchmakingWorker>();
 
 // Registra Google, emisión propia y autorización administrativa separada.
 builder.Services.AddPlatformAuthentication(builder.Environment);

@@ -42,6 +42,43 @@ export interface CreatePlayerDeckInput {
   cardCodes: string[];
 }
 
+export interface MatchmakingDeckOption {
+  id: string;
+  name: string;
+}
+
+export interface MatchSearch {
+  id: string;
+  status: "Searching" | "Matched" | "Cancelled";
+  context: "Ranked" | "Tournament";
+  contextId: string | null;
+  deckId: string;
+  elo: number;
+  acceptedEloDifference: number;
+  createdAt: string;
+  matchId: string | null;
+  message: string | null;
+}
+
+// Solo consulta los mazos existentes; su creación pertenece al módulo de mazos.
+export function getMatchmakingDecks(signal?: AbortSignal): Promise<MatchmakingDeckOption[]> {
+  return request("/api/player/matchmaking/decks", { signal, cache: "no-store" });
+}
+
+export function startRankedSearch(deckId: string, signal?: AbortSignal): Promise<MatchSearch> {
+  return request("/api/player/matchmaking/ranked", {
+    method: "POST", body: JSON.stringify({ deckId }), signal,
+  });
+}
+
+export async function getCurrentMatchSearch(signal?: AbortSignal): Promise<MatchSearch | null> {
+  return await request<MatchSearch | undefined>("/api/player/matchmaking/current", { signal, cache: "no-store" }) ?? null;
+}
+
+export function cancelMatchSearch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
+  return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}`, { method: "DELETE", signal });
+}
+
 /** Expected API routes for the player-facing endpoints. */
 export const PLAYER_API_ROUTES = {
   signIn: "/api/player/auth/provider",

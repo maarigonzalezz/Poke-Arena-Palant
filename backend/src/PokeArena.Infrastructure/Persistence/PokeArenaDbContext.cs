@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using PokeArena.Domain.Entities;
+using PokeArena.Domain.Matchmaking;
 
 namespace PokeArena.Infrastructure.Persistence;
 
@@ -12,6 +13,10 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Player> Players => Set<Player>();
+    internal DbSet<MatchSearch> MatchSearches => Set<MatchSearch>();
+    internal DbSet<GameMatch> Matches => Set<GameMatch>();
+    internal DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
+    internal DbSet<MatchmakingDeckRow> MatchmakingDeckRows => Set<MatchmakingDeckRow>();
     // Conjunto de tablas auxiliares
     // + Habilidades
     internal DbSet<AbilityRecord> Abilities => Set<AbilityRecord>();
@@ -33,6 +38,32 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         // Los scripts de database/postgres conservan la autoridad sobre esquema, vistas y triggers.
         model.HasPostgresExtension("unaccent");
         model.HasPostgresExtension("pg_trgm");
+        // El módulo de mazos conserva la propiedad de sus tablas; solo leemos su proyección.
+        var deckSource = model.Entity<MatchmakingDeckRow>();
+        deckSource.HasNoKey().ToView("matchmaking_deck_source", "public");
+        var match = model.Entity<GameMatch>();
+        match.ToTable("matches");
+        match.HasKey(x => x.Id);
+        match.Property(x => x.Id).ValueGeneratedNever();
+        match.Property(x => x.Context).HasMaxLength(20);
+        match.Property(x => x.Status).HasMaxLength(20);
+        var participant = model.Entity<MatchPlayer>();
+        participant.ToTable("match_players");
+        participant.HasKey(x => new { x.MatchId, x.PlayerId });
+        participant.Property(x => x.DeckId).HasMaxLength(MatchmakingRules.MaximumDeckIdLength);
+        participant.HasOne<GameMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict);
+        participant.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+        participant.HasIndex(x => x.PlayerId).IsUnique().HasFilter("active").HasDatabaseName("uq_match_player_active");
+        var search = model.Entity<MatchSearch>();
+        search.ToTable("matchmaking_searches");
+        search.HasKey(x => x.Id);
+        search.Property(x => x.Id).ValueGeneratedNever();
+        search.Property(x => x.DeckId).HasMaxLength(MatchmakingRules.MaximumDeckIdLength);
+        search.Property(x => x.Context).HasMaxLength(20);
+        search.Property(x => x.Status).HasMaxLength(20);
+        search.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+        search.HasOne<GameMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict);
+        search.HasIndex(x => x.PlayerId).IsUnique().HasFilter("status = 'Searching'").HasDatabaseName("uq_matchmaking_open_player");
         // La identidad externa es única; correo, rol, Elo y Cubos no se utilizan para vincular cuentas.
         var player = model.Entity<Player>();
         player.ToTable("players");
