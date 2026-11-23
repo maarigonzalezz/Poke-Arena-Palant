@@ -7,7 +7,7 @@ public sealed record MatchmakingDeck(string Id, Guid OwnerId, IReadOnlyList<long
 public sealed record MatchmakingDeckOption(string Id, string Name);
 public sealed record StartMatchSearchRequest(string? DeckId);
 public sealed record MatchSearchResult(Guid Id, string Status, string Context, Guid? ContextId,
-    string DeckId, int Elo, int AcceptedEloDifference, DateTime CreatedAt, Guid? MatchId, string? Message);
+    string DeckId, int Elo, int AcceptedEloDifference, DateTime CreatedAt, Guid? MatchId, string? Message, bool BotAvailable);
 
 // Mazos aporta lectura real de propietario y cartas; no se requiere su API de creación.
 public interface IMatchmakingDeckReader

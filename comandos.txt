@@ -1,0 +1,4 @@
+docker: docker compose up -d
+token: dotnet user-jwts create --project backend/src/PokeArena.Api --role ContentAdmin --audience http://localhost:5003 --valid-for 1h --output token
+backend: dotnet run --project backend/src/PokeArena.Api --launch-profile http
+frontend: VITE_API_URL='http://localhost:5003' VITE_MOCK_API='false' npm --prefix frontend run dev

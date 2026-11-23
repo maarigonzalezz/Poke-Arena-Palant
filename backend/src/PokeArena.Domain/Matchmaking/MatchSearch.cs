@@ -15,4 +15,5 @@ public sealed class MatchSearch
     public DateTime LastCheckedAt { get; set; }
     public Guid? MatchId { get; set; }
     public string? EndReason { get; set; }
+    public bool BotAvailable {get; set;}
 }

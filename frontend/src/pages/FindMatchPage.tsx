@@ -15,6 +15,7 @@ export default function FindMatchPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [botMatchEnabled, setBotMatchEnabled] = useState(false);
   const request = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const locked = search?.status === "Searching" || search?.status === "Matched";
@@ -76,7 +77,11 @@ export default function FindMatchPage() {
       const result = cancel && search
         ? await cancelMatchSearch(search.id, controller.signal)
         : await startRankedSearch(deckId, controller.signal);
-      if (!controller.signal.aborted) { setSearch(result); setStatusError(""); }
+      if (!controller.signal.aborted) {
+        setSearch(result);
+        if (!result.botAvailable) setBotMatchEnabled(false);
+        setStatusError("");
+      }
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : "No se pudo completar la operación.");
@@ -115,6 +120,14 @@ export default function FindMatchPage() {
     {search?.status === "Searching" && <div className="panel" role="status">
       <p>Búsqueda vigente: {search.context === "Tournament" ? "torneo" : "clasificatoria"}. Elo: {search.elo}. Diferencia aceptada actualmente: ±{search.acceptedEloDifference}.</p>
       <p>El rango comienza en ±100 y aumenta 50 cada 15 segundos, hasta ±500.</p>
+      {search.botAvailable && <button
+        type="button"
+        className={`bot-match-toggle ${botMatchEnabled ? "is-selected" : ""}`}
+        aria-pressed={botMatchEnabled}
+        onClick={() => setBotMatchEnabled(enabled => !enabled)}
+      >
+        {botMatchEnabled ? "Bot activado" : "Jugar contra un bot"}
+      </button>}
       <button type="button" disabled={busy} onClick={() => void act(true)}>Salir de la búsqueda</button>
     </div>}
     {search?.status === "Matched" && <div className="panel" role="status">

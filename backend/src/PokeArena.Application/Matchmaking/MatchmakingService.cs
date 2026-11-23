@@ -74,6 +74,10 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             var last = await repository.ReadCurrentAsync(playerId, ct);
             if (last is null || (last.Status == MatchmakingRules.Matched && !await session.HasActiveMatchAsync(playerId, ct)))
                 return null;
+            if (last.Context != MatchmakingRules.Tournament 
+                && last.Status == MatchmakingRules.Searching
+                && (clock.GetUtcNow().UtcDateTime - last.CreatedAt).TotalSeconds >= 60
+            ) last.BotAvailable = true;
             return Result(last);
         }, token);
     }
@@ -168,7 +172,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
 
     private MatchSearchResult Result(MatchSearch search) => new(search.Id, search.Status, search.Context, search.ContextId,
         search.DeckId, search.Elo, MatchmakingRules.EloRange(search.CreatedAt, clock.GetUtcNow().UtcDateTime),
-        search.CreatedAt, search.MatchId, search.EndReason);
+        search.CreatedAt, search.MatchId, search.EndReason, search.BotAvailable);
 
     private static void ValidateIdentity(Guid playerId)
     {
