@@ -58,6 +58,7 @@ export interface MatchSearch {
   createdAt: string;
   matchId: string | null;
   message: string | null;
+  botAvailable: boolean;
 }
 
 // Solo consulta los mazos existentes; su creación pertenece al módulo de mazos.

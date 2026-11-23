@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS matchmaking_searches (
     CHECK ((status='Matched' AND match_id IS NOT NULL) OR (status<>'Matched' AND match_id IS NULL))
 );
 
+ALTER TABLE matchmaking_searches
+    ADD COLUMN IF NOT EXISTS bot_available BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_matchmaking_open_player
     ON matchmaking_searches(player_id) WHERE status='Searching';
 CREATE INDEX IF NOT EXISTS idx_matchmaking_candidates
