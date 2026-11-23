@@ -25,6 +25,7 @@ services:
       - ./database/postgres/migrations/006_test_cards.sql:/docker-entrypoint-initdb.d/zzzzzzz_test_cards.sql:ro
       - ./database/postgres/migrations/007_initial_collection.sql:/docker-entrypoint-initdb.d/zzzzzzzz_initial_collection.sql:ro
       - ./database/postgres/migrations/008_matchmaking.sql:/docker-entrypoint-initdb.d/zzzzzzzzz_matchmaking.sql:ro
+      - ./database/postgres/migrations/009_matchmaking_lifecycle.sql:/docker-entrypoint-initdb.d/zzzzzzzzzz_matchmaking_lifecycle.sql:ro
 
     healthcheck:
       test:

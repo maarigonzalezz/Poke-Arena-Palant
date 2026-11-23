@@ -13,7 +13,7 @@ public sealed class MatchSearch
     public string Status { get; set; } = MatchmakingRules.Searching;
     public DateTime CreatedAt { get; set; }
     public DateTime LastCheckedAt { get; set; }
+    public DateTime LastPolledAt { get; set; }
     public Guid? MatchId { get; set; }
     public string? EndReason { get; set; }
-    public bool BotAvailable {get; set;}
 }

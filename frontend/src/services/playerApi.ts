@@ -49,7 +49,7 @@ export interface MatchmakingDeckOption {
 
 export interface MatchSearch {
   id: string;
-  status: "Searching" | "Matched" | "Cancelled";
+  status: "Searching" | "Matched" | "Cancelled" | "Expired";
   context: "Ranked" | "Tournament";
   contextId: string | null;
   deckId: string;
@@ -78,6 +78,11 @@ export async function getCurrentMatchSearch(signal?: AbortSignal): Promise<Match
 
 export function cancelMatchSearch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
   return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}`, { method: "DELETE", signal });
+}
+
+// El servidor confirma la oferta y crea la partida con el deck ya reservado.
+export function acceptBotMatch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
+  return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}/bot`, { method: "POST", signal });
 }
 
 /** Expected API routes for the player-facing endpoints. */

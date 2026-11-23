@@ -26,9 +26,10 @@ public interface IMatchmakingSession
     Task<bool> IsDeckReservedAsync(Guid playerId, string deckId, CancellationToken cancellationToken);
     Task<IReadOnlyList<long>> ReadOwnedCardIdsAsync(Guid playerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchSearch>> ReadWaitingAsync(string context, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MatchSearch>> ReadInactiveAsync(DateTime cutoff, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchSearch>> ReadCandidatesAsync(MatchSearch search, int range, CancellationToken cancellationToken);
-    void AddSearch(MatchSearch search);
-    void AddMatch(GameMatch match, MatchPlayer first, MatchPlayer second);
+    Task AddSearchAsync(MatchSearch search, CancellationToken cancellationToken);
+    void AddMatch(GameMatch match, params MatchPlayer[] participants);
 }
 
 // Mazos envuelve edición y borrado con este guard y usa el DbContext del mismo alcance.

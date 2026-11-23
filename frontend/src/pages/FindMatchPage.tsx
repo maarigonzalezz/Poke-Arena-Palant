@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { cancelMatchSearch, getCurrentMatchSearch, getMatchmakingDecks, startRankedSearch,
+import { acceptBotMatch, cancelMatchSearch, getCurrentMatchSearch, getMatchmakingDecks, startRankedSearch,
   type MatchmakingDeckOption, type MatchSearch } from "../services/playerApi";
 
 const POLL_INTERVAL_MS = 2000;
@@ -15,7 +15,6 @@ export default function FindMatchPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [botMatchEnabled, setBotMatchEnabled] = useState(false);
   const request = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const locked = search?.status === "Searching" || search?.status === "Matched";
@@ -67,19 +66,20 @@ export default function FindMatchPage() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [loading]);
 
-  async function act(cancel: boolean) {
+  async function act(action: "start" | "cancel" | "bot") {
     if (request.current || busy) return;
     const controller = new AbortController();
     request.current = controller;
     revision.current++;
     setBusy(true); setError("");
     try {
-      const result = cancel && search
-        ? await cancelMatchSearch(search.id, controller.signal)
-        : await startRankedSearch(deckId, controller.signal);
+      const result = action === "bot" && search
+        ? await acceptBotMatch(search.id, controller.signal)
+        : action === "cancel" && search
+          ? await cancelMatchSearch(search.id, controller.signal)
+          : await startRankedSearch(deckId, controller.signal);
       if (!controller.signal.aborted) {
         setSearch(result);
-        if (!result.botAvailable) setBotMatchEnabled(false);
         setStatusError("");
       }
     } catch (cause) {
@@ -102,7 +102,7 @@ export default function FindMatchPage() {
   return <section className="player-page">
     <h1>Buscar partida clasificatoria</h1>
     <p>Seleccione uno de sus decks. El servidor comprobará sus cartas y que tenga al menos 8 cubos.</p>
-    <form className="panel" onSubmit={event => { event.preventDefault(); void act(false); }}>
+    <form className="panel" onSubmit={event => { event.preventDefault(); void act("start"); }}>
       <label>Deck
         <select value={deckId} disabled={loading || busy || locked || !!deckError} onChange={event => { setDeckId(event.target.value); setError(""); }}>
           <option value="">Seleccione un deck</option>
@@ -122,18 +122,19 @@ export default function FindMatchPage() {
       <p>El rango comienza en ±100 y aumenta 50 cada 15 segundos, hasta ±500.</p>
       {search.botAvailable && <button
         type="button"
-        className={`bot-match-toggle ${botMatchEnabled ? "is-selected" : ""}`}
-        aria-pressed={botMatchEnabled}
-        onClick={() => setBotMatchEnabled(enabled => !enabled)}
+        disabled={busy}
+        onClick={() => void act("bot")}
       >
-        {botMatchEnabled ? "Bot activado" : "Jugar contra un bot"}
+        Jugar contra un bot
       </button>}
-      <button type="button" disabled={busy} onClick={() => void act(true)}>Salir de la búsqueda</button>
+      {search.botAvailable && <p>Puede aceptar al bot o seguir esperando un rival; la oferta seguirá disponible.</p>}
+      <button type="button" disabled={busy} onClick={() => void act("cancel")}>Salir de la búsqueda</button>
     </div>}
     {search?.status === "Matched" && <div className="panel" role="status">
       <p>Partida encontrada: {search.matchId}</p><p>El deck elegido quedó registrado para esta partida.</p>
     </div>}
     {search?.status === "Cancelled" && <p role="status">{search.message ?? "Salió de la búsqueda. Puede elegir otro deck."}</p>}
+    {search?.status === "Expired" && <p role="status">{search.message}</p>}
     {statusError && <p className="alert error" role="alert">{statusError}</p>}
     {error && <p className="alert error" role="alert">{error}</p>}
     {(deckError || statusError) && <button type="button" disabled={loading || busy} onClick={() => {

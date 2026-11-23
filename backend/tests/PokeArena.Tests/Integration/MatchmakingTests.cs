@@ -11,7 +11,7 @@ namespace PokeArena.Tests.Integration;
 // HTTP, cola, decks de prueba y concurrencia usan PostgreSQL real del contenedor desechable.
 [Collection("catalog-integration")]
 [Trait("Category","Integration")]
-public sealed class MatchmakingTests(CatalogFixture fixture)
+public sealed partial class MatchmakingTests(CatalogFixture fixture)
 {
     private readonly Guid first = Guid.NewGuid();
     private readonly Guid second = Guid.NewGuid();
