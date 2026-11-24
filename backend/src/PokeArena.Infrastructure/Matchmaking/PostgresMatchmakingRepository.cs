@@ -68,18 +68,28 @@ public sealed class PostgresMatchmakingRepository(PokeArenaDbContext db) : IMatc
                 .OrderBy(x => x.LastCheckedAt).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id)
                 .Take(MatchmakingRules.ProcessingBatchSize).ToListAsync(token);
 
+        public async Task<IReadOnlyList<MatchSearch>> ReadInactiveAsync(DateTime cutoff, CancellationToken token) =>
+            await db.MatchSearches.Where(x => x.Status == MatchmakingRules.Searching && x.LastPolledAt <= cutoff)
+                .OrderBy(x => x.LastPolledAt).ThenBy(x => x.Id)
+                .Take(MatchmakingRules.ProcessingBatchSize).ToListAsync(token);
+
         public async Task<IReadOnlyList<MatchSearch>> ReadCandidatesAsync(MatchSearch search, int range, CancellationToken token) =>
             await db.MatchSearches.Where(x => x.Status == MatchmakingRules.Searching && x.PlayerId != search.PlayerId
                 && x.Context == search.Context && x.ContextId == search.ContextId
                 && (long)x.Elo >= (long)search.Elo - range && (long)x.Elo <= (long)search.Elo + range)
                 .OrderBy(x => Math.Abs((long)x.Elo - search.Elo)).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(token);
 
-        public void AddSearch(MatchSearch search) => db.MatchSearches.Add(search);
+        public async Task AddSearchAsync(MatchSearch search, CancellationToken token)
+        {
+            // Libera primero el índice de una búsqueda vencida dentro de la misma transacción.
+            await db.SaveChangesAsync(token);
+            db.MatchSearches.Add(search);
+        }
 
-        public void AddMatch(GameMatch match, MatchPlayer first, MatchPlayer second)
+        public void AddMatch(GameMatch match, params MatchPlayer[] participants)
         {
             db.Matches.Add(match);
-            db.MatchPlayers.AddRange(first, second);
+            db.MatchPlayers.AddRange(participants);
         }
     }
 }

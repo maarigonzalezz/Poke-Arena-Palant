@@ -3,17 +3,17 @@ using PokeArena.Domain.Matchmaking;
 
 namespace PokeArena.Application.Matchmaking;
 
-public sealed record MatchmakingDeck(string Id, Guid OwnerId, IReadOnlyList<long> CardIds);
+public sealed record MatchmakingDeck(string Id, IReadOnlyList<long> CardIds);
 public sealed record MatchmakingDeckOption(string Id, string Name);
 public sealed record StartMatchSearchRequest(string? DeckId);
 public sealed record MatchSearchResult(Guid Id, string Status, string Context, Guid? ContextId,
-    string DeckId, int Elo, int AcceptedEloDifference, DateTime CreatedAt, Guid? MatchId, string? Message);
+    string DeckId, int Elo, int AcceptedEloDifference, DateTime CreatedAt, Guid? MatchId, string? Message, bool BotAvailable);
 
 // Mazos aporta lectura real de propietario y cartas; no se requiere su API de creación.
 public interface IMatchmakingDeckReader
 {
-    // Devuelve todas las cartas, incluso duplicadas, y conserva un deck vacío como lista vacía.
-    Task<MatchmakingDeck?> FindAsync(string deckId, CancellationToken cancellationToken);
+    // Solo devuelve los datos del mazo si pertenece al jugador, incluso si la selección está vacía.
+    Task<MatchmakingDeck?> FindAsync(Guid playerId, string deckId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchmakingDeckOption>> ListAsync(Guid playerId, CancellationToken cancellationToken);
 }
 
@@ -26,9 +26,10 @@ public interface IMatchmakingSession
     Task<bool> IsDeckReservedAsync(Guid playerId, string deckId, CancellationToken cancellationToken);
     Task<IReadOnlyList<long>> ReadOwnedCardIdsAsync(Guid playerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchSearch>> ReadWaitingAsync(string context, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MatchSearch>> ReadInactiveAsync(DateTime cutoff, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchSearch>> ReadCandidatesAsync(MatchSearch search, int range, CancellationToken cancellationToken);
-    void AddSearch(MatchSearch search);
-    void AddMatch(GameMatch match, MatchPlayer first, MatchPlayer second);
+    Task AddSearchAsync(MatchSearch search, CancellationToken cancellationToken);
+    void AddMatch(GameMatch match, params MatchPlayer[] participants);
 }
 
 // Mazos envuelve edición y borrado con este guard y usa el DbContext del mismo alcance.

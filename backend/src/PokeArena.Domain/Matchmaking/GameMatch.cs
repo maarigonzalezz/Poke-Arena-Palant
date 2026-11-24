@@ -8,6 +8,9 @@ public sealed class GameMatch
     public Guid? ContextId { get; set; }
     public string Status { get; set; } = MatchmakingRules.ActiveMatch;
     public DateTime CreatedAt { get; set; }
+    public bool IsBot { get; set; }
+    // El bot usa una copia del deck fijado al entrar, sin crear jugadores artificiales.
+    public long[]? BotCardIds { get; set; }
 }
 
 // La reserva activa impide que un jugador participe simultáneamente en dos partidas.

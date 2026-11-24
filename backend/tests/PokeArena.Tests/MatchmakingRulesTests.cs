@@ -32,8 +32,52 @@ public sealed class MatchmakingRulesTests
         Assert.False(MatchmakingRules.CanPair(first, first, now));
     }
 
+    [Theory]
+    [InlineData(59, 0, false)]
+    [InlineData(60, 0, true)]
+    [InlineData(600, 59, true)]
+    [InlineData(600, 60, false)]
+    public void Bot_offer_requires_enough_wait_and_a_live_search(int waited, int inactive, bool expected)
+    {
+        var now = DateTime.UtcNow;
+        var search = Search(0, now.AddSeconds(-waited));
+        search.LastPolledAt = now.AddSeconds(-inactive);
+        Assert.Equal(expected, MatchmakingRules.CanOfferBot(search, now));
+        search.Context = MatchmakingRules.Tournament;
+        Assert.False(MatchmakingRules.CanOfferBot(search, now));
+    }
+
+    [Theory]
+    [InlineData(MatchmakingRules.Cancelled)]
+    [InlineData(MatchmakingRules.Expired)]
+    [InlineData(MatchmakingRules.Matched)]
+    public void Closed_searches_never_pair_or_offer_a_bot(string status)
+    {
+        var now = DateTime.UtcNow;
+        var first = Search(0, now.AddMinutes(-2));
+        var second = Search(0, now);
+        first.Status = status;
+        Assert.False(MatchmakingRules.CanPair(first, second, now));
+        Assert.False(MatchmakingRules.CanPair(second, first, now));
+        Assert.False(MatchmakingRules.CanOfferBot(first, now));
+    }
+
+    [Theory]
+    [InlineData(59, false)]
+    [InlineData(60, true)]
+    [InlineData(61, true)]
+    public void Inactivity_is_measured_from_the_last_player_poll(int seconds, bool expired)
+    {
+        var now = DateTime.UtcNow;
+        var search = Search(0, now.AddMinutes(-10));
+        search.LastPolledAt = now.AddSeconds(-seconds);
+        search.LastCheckedAt = now;
+        Assert.Equal(expired, MatchmakingRules.IsExpired(search, now));
+        Assert.Equal(!expired, MatchmakingRules.CanPair(search, Search(0, now), now));
+    }
+
     private static MatchSearch Search(int elo, DateTime created) => new() {
         Id = Guid.NewGuid(), PlayerId = Guid.NewGuid(), DeckId = "deck", CardIds = [],
-        Context = MatchmakingRules.Ranked, Elo = elo, CreatedAt = created
+        Context = MatchmakingRules.Ranked, Elo = elo, CreatedAt = created, LastPolledAt = DateTime.UtcNow
     };
 }

@@ -8,12 +8,13 @@ namespace PokeArena.Infrastructure.Matchmaking;
 // El módulo de mazos publica esta vista; aquí no se crean ni se simulan decks.
 public sealed class PostgresMatchmakingDeckReader(PokeArenaDbContext db) : IMatchmakingDeckReader
 {
-    public async Task<MatchmakingDeck?> FindAsync(string deckId, CancellationToken token)
+    public async Task<MatchmakingDeck?> FindAsync(Guid playerId, string deckId, CancellationToken token)
     {
         try
         {
-            var rows = await db.MatchmakingDeckRows.AsNoTracking().Where(x => x.DeckId == deckId).ToListAsync(token);
-            return rows.Count == 0 ? null : new(rows[0].DeckId, rows[0].PlayerId,
+            var rows = await db.MatchmakingDeckRows.AsNoTracking()
+                .Where(x => x.PlayerId == playerId && x.DeckId == deckId).ToListAsync(token);
+            return rows.Count == 0 ? null : new(rows[0].DeckId,
                 rows.Where(x => x.CardId.HasValue).Select(x => x.CardId!.Value).ToArray());
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)

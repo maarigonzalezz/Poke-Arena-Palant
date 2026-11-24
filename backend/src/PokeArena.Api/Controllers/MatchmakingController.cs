@@ -41,5 +41,12 @@ public sealed class MatchmakingController(MatchmakingService matchmaking) : Cont
         return Ok(await matchmaking.DecksAsync(id, token));
     }
 
+    [HttpPost("{searchId:guid}/bot")]
+    public async Task<IActionResult> AcceptBot(Guid searchId, CancellationToken token)
+    {
+        if (!TryPlayer(out var id)) return Unauthorized();
+        return Ok(await matchmaking.AcceptBotAsync(id, searchId, token));
+    }
+
     private bool TryPlayer(out Guid id) => Guid.TryParse(User.FindFirst("sub")?.Value, out id) && id != Guid.Empty;
 }

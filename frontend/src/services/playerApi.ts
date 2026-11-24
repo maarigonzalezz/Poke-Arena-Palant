@@ -1,4 +1,4 @@
-import type { CardRarity, CardType } from "../types/catalogs";
+import type { Card, CardRarity, CardType } from "../types/catalogs";
 import type { PlayerCatalogCard } from "../pages/playerCatalogTypes";
 import { API_BASE_URL } from "./api";
 
@@ -35,7 +35,10 @@ export interface PlayerDeck {
   name: string;
   cardCodes: string[];
   createdAt: string;
+  cards?: DeckCardPreview[] | null;
 }
+
+export type DeckCardPreview = Pick<Card, "code" | "name" | "type" | "cost" | "power" | "imageUrl" | "imageSmallUrl">;
 
 export interface CreatePlayerDeckInput {
   name: string;
@@ -49,7 +52,7 @@ export interface MatchmakingDeckOption {
 
 export interface MatchSearch {
   id: string;
-  status: "Searching" | "Matched" | "Cancelled";
+  status: "Searching" | "Matched" | "Cancelled" | "Expired";
   context: "Ranked" | "Tournament";
   contextId: string | null;
   deckId: string;
@@ -58,6 +61,7 @@ export interface MatchSearch {
   createdAt: string;
   matchId: string | null;
   message: string | null;
+  botAvailable: boolean;
 }
 
 // Solo consulta los mazos existentes; su creación pertenece al módulo de mazos.
@@ -77,6 +81,11 @@ export async function getCurrentMatchSearch(signal?: AbortSignal): Promise<Match
 
 export function cancelMatchSearch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
   return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}`, { method: "DELETE", signal });
+}
+
+// El servidor confirma la oferta y crea la partida con el deck ya reservado.
+export function acceptBotMatch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
+  return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}/bot`, { method: "POST", signal });
 }
 
 /** Expected API routes for the player-facing endpoints. */
@@ -149,12 +158,17 @@ async function readCardPage(path: string, signal?: AbortSignal): Promise<PlayerC
   })) };
 }
 
-/** Saves a 12-card deck; the server must validate ownership and deck rules. */
+export function getPlayerDecks(signal?: AbortSignal): Promise<PlayerDeck[]> {
+  return request(PLAYER_API_ROUTES.decks, { signal, cache: "no-store" });
+}
+
 export async function createPlayerDeck(
   input: CreatePlayerDeckInput,
+  idempotencyKey: string,
 ): Promise<PlayerDeck> {
   return request<PlayerDeck>(PLAYER_API_ROUTES.decks, {
     method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify(input),
   });
 }

@@ -11,11 +11,14 @@ public static class MatchmakingRules
     public const int ProcessingIntervalSeconds = 2;
     public const int MaximumDeckIdLength = 100;
     public const int ProcessingBatchSize = 100;
+    public const int BotOfferAfterSeconds = 60;
+    public const int SearchInactivitySeconds = 60;
     public const string Ranked = "Ranked";
     public const string Tournament = "Tournament";
     public const string Searching = "Searching";
     public const string Matched = "Matched";
     public const string Cancelled = "Cancelled";
+    public const string Expired = "Expired";
     public const string ActiveMatch = "Active";
 
     public static int EloRange(DateTime startedAt, DateTime now)
@@ -26,8 +29,17 @@ public static class MatchmakingRules
         return InitialEloRange + (int)steps * EloRangeStep;
     }
 
-    // Ambos jugadores deben aceptar la diferencia según su propio tiempo de espera.
+    // Solo las consultas del jugador renuevan su presencia; el worker no la prolonga.
+    public static bool IsExpired(MatchSearch search, DateTime now) =>
+        search.Status == Searching && (now - search.LastPolledAt).TotalSeconds >= SearchInactivitySeconds;
+
+    public static bool CanOfferBot(MatchSearch search, DateTime now) =>
+        search.Status == Searching && search.Context == Ranked && !IsExpired(search, now)
+        && (now - search.CreatedAt).TotalSeconds >= BotOfferAfterSeconds;
+
+    // Ambos deben seguir presentes y aceptar la diferencia según su propio tiempo de espera.
     public static bool CanPair(MatchSearch first, MatchSearch second, DateTime now) =>
-        first.PlayerId != second.PlayerId && first.Context == second.Context && first.ContextId == second.ContextId
+        first.Status == Searching && second.Status == Searching && !IsExpired(first, now) && !IsExpired(second, now)
+        && first.PlayerId != second.PlayerId && first.Context == second.Context && first.ContextId == second.ContextId
         && Math.Abs((long)first.Elo - second.Elo) <= Math.Min(EloRange(first.CreatedAt, now), EloRange(second.CreatedAt, now));
 }

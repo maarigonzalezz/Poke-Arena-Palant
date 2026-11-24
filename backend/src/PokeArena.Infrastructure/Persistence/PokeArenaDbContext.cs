@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using PokeArena.Domain.Decks;
 using PokeArena.Domain.Entities;
 using PokeArena.Domain.Matchmaking;
 
@@ -17,6 +18,8 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     internal DbSet<GameMatch> Matches => Set<GameMatch>();
     internal DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
     internal DbSet<MatchmakingDeckRow> MatchmakingDeckRows => Set<MatchmakingDeckRow>();
+    internal DbSet<PlayerDeckRecord> PlayerDecks => Set<PlayerDeckRecord>();
+    internal DbSet<PlayerDeckCardRecord> PlayerDeckCards => Set<PlayerDeckCardRecord>();
     // Conjunto de tablas auxiliares
     // + Habilidades
     internal DbSet<AbilityRecord> Abilities => Set<AbilityRecord>();
@@ -41,6 +44,21 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         // El módulo de mazos conserva la propiedad de sus tablas; solo leemos su proyección.
         var deckSource = model.Entity<MatchmakingDeckRow>();
         deckSource.HasNoKey().ToView("matchmaking_deck_source", "public");
+
+        var deck = model.Entity<PlayerDeckRecord>();
+        deck.ToTable("player_decks");
+        deck.HasKey(x => x.Id);
+        deck.Property(x => x.Id).ValueGeneratedNever();
+        deck.Property(x => x.Name).HasMaxLength(PlayerDeck.MaximumNameLength);
+        deck.HasIndex(x => new { x.PlayerId, x.NameKey }).IsUnique().HasDatabaseName("uq_player_decks_name");
+        deck.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
+
+        var deckCard = model.Entity<PlayerDeckCardRecord>();
+        deckCard.ToTable("player_deck_cards");
+        deckCard.HasKey(x => new { x.DeckId, x.CardId });
+        deckCard.HasOne<PlayerDeckRecord>().WithMany().HasForeignKey(x => x.DeckId).OnDelete(DeleteBehavior.Cascade);
+        deckCard.HasOne<Card>().WithMany().HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Restrict);
+
         var match = model.Entity<GameMatch>();
         match.ToTable("matches");
         match.HasKey(x => x.Id);

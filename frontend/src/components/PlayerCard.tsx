@@ -7,11 +7,12 @@ type Props = {
   variant?: "full" | "mini";
   selected?: boolean;
   canAdd?: boolean;
+  deckBusy?: boolean;
   onDeckToggle?: () => void;
 };
 
 // Una misma carta se presenta en asignación inicial, catálogo, colección y mazos.
-export default function PlayerCard({ card, quantity = card.quantity, variant = "full", selected, canAdd, onDeckToggle }: Props) {
+export default function PlayerCard({ card, quantity = card.quantity, variant = "full", selected, canAdd, deckBusy, onDeckToggle }: Props) {
   if (variant === "mini") return (
     <div className="mini-card" title={card.name}>
       <CardImage card={card} small />
@@ -34,7 +35,7 @@ export default function PlayerCard({ card, quantity = card.quantity, variant = "
           {quantity ? `En tu colección · ${quantity} ${quantity === 1 ? "copia" : "copias"}` : "Aún no la tienes"}
         </div>
         {onDeckToggle && <button type="button" className={`deck-toggle ${selected ? "is-selected" : ""}`}
-          disabled={!quantity || (!selected && !canAdd)} onClick={onDeckToggle}>
+          disabled={deckBusy || !quantity || (!selected && !canAdd)} onClick={onDeckToggle}>
           {selected ? "Quitar del mazo" : canAdd ? "＋ Agregar al mazo" : "Mazo completo"}
         </button>}
       </div>
