@@ -35,6 +35,10 @@
     <None Include="../../../database/postgres/migrations/007_initial_collection.sql" Link="TestData/initial_collection.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../database/postgres/migrations/008_matchmaking.sql" Link="TestData/matchmaking.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../database/postgres/migrations/009_matchmaking_lifecycle.sql" Link="TestData/matchmaking_lifecycle.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/010_match_preparation.sql" Link="TestData/match_preparation.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/011_player_decks.sql" Link="TestData/player_decks.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/012_match_card_actions.sql" Link="TestData/match_card_actions.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/013_match_results.sql" Link="TestData/match_results.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

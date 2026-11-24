@@ -68,6 +68,8 @@ builder.Services.AddScoped<PlayerCatalogService>();
 builder.Services.AddScoped<IPlayerCatalogRepository, PostgresPlayerCatalogRepository>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<MatchmakingService>();
+builder.Services.AddScoped<PlayerDeckService>();
+builder.Services.AddScoped<IPlayerDeckRepository, PostgresPlayerDeckRepository>();
 builder.Services.AddScoped<IMatchmakingDeckGuard>(services => services.GetRequiredService<MatchmakingService>());
 builder.Services.AddScoped<IMatchmakingRepository, PostgresMatchmakingRepository>();
 builder.Services.AddScoped<IMatchmakingDeckReader, PostgresMatchmakingDeckReader>();

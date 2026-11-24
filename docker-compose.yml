@@ -26,6 +26,9 @@ services:
       - ./database/postgres/migrations/007_initial_collection.sql:/docker-entrypoint-initdb.d/zzzzzzzz_initial_collection.sql:ro
       - ./database/postgres/migrations/008_matchmaking.sql:/docker-entrypoint-initdb.d/zzzzzzzzz_matchmaking.sql:ro
       - ./database/postgres/migrations/009_matchmaking_lifecycle.sql:/docker-entrypoint-initdb.d/zzzzzzzzzz_matchmaking_lifecycle.sql:ro
+      - ./database/postgres/migrations/010_match_preparation.sql:/docker-entrypoint-initdb.d/zzzzzzzzzzz_match_preparation.sql:ro
+      - ./database/postgres/migrations/011_player_decks.sql:/docker-entrypoint-initdb.d/zzzzzzzzzzzz_player_decks.sql:ro
+      - ./database/postgres/migrations/012_match_card_actions.sql:/docker-entrypoint-initdb.d/zzzzzzzzzzzzz_match_card_actions.sql:ro
 
     healthcheck:
       test:
@@ -47,7 +50,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?Define MONGO_PASSWORD}
 
     ports:
-      - "127.0.0.1:27017:27017"
+      - "127.0.0.1:27018:27017"
 
     volumes:
       - mongo_data:/data/db

@@ -79,6 +79,34 @@ public sealed class PostgresMatchmakingRepository(PokeArenaDbContext db) : IMatc
                 && (long)x.Elo >= (long)search.Elo - range && (long)x.Elo <= (long)search.Elo + range)
                 .OrderBy(x => Math.Abs((long)x.Elo - search.Elo)).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(token);
 
+        public async Task<IReadOnlyList<Location>> ReadMatchLocationsAsync(CancellationToken token) =>
+            await db.Locations.AsNoTracking()
+                .Where(x => x.Active && x.ImageStatus == "Ready")
+                .OrderBy(x => x.Id)
+                .ToListAsync(token);
+
+        public async Task<GameMatch?> LockMatchAsync(Guid matchId, Guid playerId, CancellationToken token)
+        {
+            var member = await db.MatchPlayers.AsNoTracking()
+                .AnyAsync(x => x.MatchId == matchId && x.PlayerId == playerId, token);
+            if (!member) return null;
+            var match = await db.Matches.FromSqlInterpolated(
+                    $"SELECT * FROM matches WHERE id={matchId} FOR UPDATE")
+                .SingleOrDefaultAsync(token);
+            if (match is not null) await db.Entry(match).ReloadAsync(token);
+            return match;
+        }
+
+        public async Task<IReadOnlyList<MatchPlayer>> ReadMatchPlayersAsync(Guid matchId, CancellationToken token) =>
+            await db.MatchPlayers.Where(x => x.MatchId == matchId).ToListAsync(token);
+
+        public async Task<IReadOnlyList<MatchLocationChoice>> ReadMatchLocationChoicesAsync(Guid matchId, CancellationToken token) =>
+            await db.MatchLocationChoices.AsNoTracking().Where(x => x.MatchId == matchId)
+                .OrderBy(x => x.Slot).ToListAsync(token);
+
+        public async Task<IReadOnlyList<Card>> ReadCardsAsync(IReadOnlyCollection<long> cardIds, CancellationToken token) =>
+            await db.Cards.AsNoTracking().Where(x => cardIds.Contains(x.Id)).ToListAsync(token);
+
         public async Task AddSearchAsync(MatchSearch search, CancellationToken token)
         {
             // Libera primero el índice de una búsqueda vencida dentro de la misma transacción.
@@ -90,6 +118,7 @@ public sealed class PostgresMatchmakingRepository(PokeArenaDbContext db) : IMatc
         {
             db.Matches.Add(match);
             db.MatchPlayers.AddRange(participants);
+            db.MatchLocationChoices.AddRange(match.Locations);
         }
     }
 }

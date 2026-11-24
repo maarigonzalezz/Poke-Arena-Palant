@@ -67,6 +67,10 @@ public class CatalogFixture : IAsyncLifetime
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/initial_collection.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/matchmaking.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/matchmaking_lifecycle.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/match_preparation.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/player_decks.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/match_card_actions.sql")));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/match_results.sql")));
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");

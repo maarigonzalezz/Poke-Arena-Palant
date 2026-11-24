@@ -266,7 +266,7 @@ export default function PlayerExperiencePage({
           </div>
         </header>
 
-        {section === "matchmaking" && <FindMatchPage />}
+        {section === "matchmaking" && <FindMatchPage onBuildDeck={() => setSection("decks")} />}
         {section === "catalog" && (
           <section className="player-page">
             <header className="player-page-heading">

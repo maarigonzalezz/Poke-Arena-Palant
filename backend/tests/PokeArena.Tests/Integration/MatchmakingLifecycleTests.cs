@@ -45,8 +45,12 @@ public sealed partial class MatchmakingTests
         Assert.False(matched.BotAvailable);
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matches WHERE is_bot AND status='Active' AND cardinality(bot_card_ids)=12"));
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM match_players WHERE active AND deck_id='first-deck'"));
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matches m JOIN match_players p ON p.match_id=m.id WHERE m.bot_card_ids=p.card_ids"));
-        Assert.Equal(16, await fixture.Count("SELECT sum(cubes) FROM players"));
+        Assert.Equal(1, await fixture.Count("""
+            SELECT count(*) FROM matches m JOIN match_players p ON p.match_id=m.id
+            WHERE ARRAY(SELECT unnest(m.bot_card_ids) ORDER BY 1)
+                = ARRAY(SELECT unnest(p.card_ids) ORDER BY 1)
+            """));
+        Assert.Equal(12, await fixture.Count("SELECT sum(cubes) FROM players"));
         Assert.Equal(0, await Process());
         var cancel = await client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
         Assert.Equal(HttpStatusCode.Conflict, cancel.StatusCode);

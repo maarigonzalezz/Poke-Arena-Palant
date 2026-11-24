@@ -24,13 +24,21 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
                 id text PRIMARY KEY, player_id uuid NOT NULL REFERENCES players(id), name text NOT NULL);
             CREATE TABLE IF NOT EXISTS test_matchmaking_deck_cards (
                 deck_id text REFERENCES test_matchmaking_decks(id), card_id bigint REFERENCES cards(id));
-            CREATE OR REPLACE VIEW matchmaking_deck_source AS
+            DROP VIEW IF EXISTS matchmaking_deck_source;
+            CREATE VIEW matchmaking_deck_source AS
                 SELECT d.id AS deck_id,d.player_id,d.name,c.card_id
                 FROM test_matchmaking_decks d LEFT JOIN test_matchmaking_deck_cards c ON c.deck_id=d.id;
             INSERT INTO players(id,identity_provider,provider_subject,cubes,elo)
             VALUES ('{first}','Google','first',8,0),('{second}','Google','second',8,50);
             INSERT INTO cards(code,name,cost,power,card_type,rarity,ability_code)
                 SELECT 'MATCH-'||n,'Carta '||n,1,1,'Fuego','Común','HAB-000' FROM generate_series(1,13) n;
+            UPDATE cards SET image_original_path='/files/card-original.png',image_small_path='/files/card-small.png'
+                WHERE code LIKE 'MATCH-%';
+            INSERT INTO locations(name,description,max_cards,energy_mode,extra_energy,effect_type,effect_parameters,image_status,active,current_version)
+                VALUES
+                    ('Arena uno','Prueba',4,'Fixed',1,'None','null','Ready',true,1),
+                    ('Arena dos','Prueba',4,'Fixed',0,'None','null','Ready',true,1),
+                    ('Arena tres','Prueba',4,'PerCard',1,'None','null','Ready',true,1);
             INSERT INTO player_cards(player_id,card_id,copies)
                 SELECT p.id,c.id,1 FROM players p CROSS JOIN cards c WHERE c.code<>'MATCH-13';
             INSERT INTO test_matchmaking_decks VALUES
@@ -67,13 +75,238 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         Assert.Equal(1,await fixture.Count("SELECT count(*) FROM matches"));
         Assert.Equal(2,await fixture.Count("SELECT count(*) FROM match_players WHERE active"));
         Assert.Equal(2,await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Matched'"));
-        Assert.Equal(16,await fixture.Count("SELECT sum(cubes) FROM players"));
+        Assert.Equal(8,await fixture.Count("SELECT sum(cubes) FROM players"));
+        Assert.Equal(4,await fixture.Count($"SELECT cubes FROM players WHERE id='{first}'"));
+        Assert.Equal(4,await fixture.Count($"SELECT cubes FROM players WHERE id='{second}'"));
         using var client = Client(first);
         var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
         Assert.NotNull(current.MatchId);
         Assert.Equal(HttpStatusCode.Conflict,(await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-other" })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict,(await client.DeleteAsync($"/api/player/matchmaking/{a.Id}")).StatusCode);
         Assert.Equal(12,await fixture.Count("SELECT cardinality(card_ids) FROM match_players WHERE deck_id='first-deck'"));
+    }
+
+    [IntegrationFact]
+    public async Task Match_state_shows_own_hand_and_public_opponent_counts_and_advances_after_timer()
+    {
+        await Seed();
+        await Start(first, "first-deck");
+        await Start(second, "second-deck");
+        Assert.Equal(1, await Process());
+        using var client = Client(first);
+        var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
+        var stateResponse = await client.GetAsync($"/api/player/matchmaking/{current.MatchId}/state");
+        var initialJson = await stateResponse.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("remainingCardIds", initialJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("preparationSeed", initialJson, StringComparison.OrdinalIgnoreCase);
+        var initial = (await stateResponse.Content.ReadFromJsonAsync<MatchStateResult>())!;
+
+        Assert.Equal(1, initial.TurnNumber);
+        Assert.Equal(4, initial.WagerCubes);
+        Assert.Equal(3, initial.Locations.Count);
+        Assert.Equal(3, initial.Player.Energy);
+        Assert.Equal(4, initial.Player.HandCards.Count);
+        Assert.Equal(8, initial.Player.RemainingDeckCards);
+        Assert.Equal(first, initial.Player.PlayerId);
+        Assert.False(initial.Opponent.IsBot);
+        Assert.Equal(4, initial.Opponent.HandCardCount);
+        Assert.Equal(8, initial.Opponent.RemainingDeckCards);
+        Assert.Empty(initial.Opponent.BoardCards);
+        Assert.DoesNotContain("handCardIds", initialJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("botCardIds", initialJson, StringComparison.OrdinalIgnoreCase);
+
+        await fixture.Execute($"UPDATE matches SET turn_ends_at=NOW()-INTERVAL '1 second' WHERE id='{current.MatchId}'");
+        var advanceResponse = await client.PostAsync(
+            $"/api/player/matchmaking/{current.MatchId}/turn/advance", null);
+        Assert.True(advanceResponse.StatusCode == HttpStatusCode.OK,
+            await advanceResponse.Content.ReadAsStringAsync());
+        var next = (await advanceResponse.Content.ReadFromJsonAsync<MatchStateResult>())!;
+
+        Assert.Equal(2, next.TurnNumber);
+        Assert.Equal(5, next.Player.HandCards.Count);
+        Assert.Equal(7, next.Player.RemainingDeckCards);
+        Assert.Equal(4, next.Player.Energy);
+        var retry = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/turn/advance",
+            new { turnNumber = 1 });
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal(2, (await retry.Content.ReadFromJsonAsync<MatchStateResult>())!.TurnNumber);
+    }
+
+    [IntegrationFact]
+    public async Task Player_can_play_and_discard_cards_and_per_card_energy_applies_next_turn()
+    {
+        await Seed();
+        await Start(first, "first-deck");
+        await Start(second, "second-deck");
+        Assert.Equal(1, await Process());
+        using var client = Client(first);
+        var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
+        var initial = (await client.GetFromJsonAsync<MatchStateResult>(
+            $"/api/player/matchmaking/{current.MatchId}/state"))!;
+        var perCardLocation = initial.Locations.Single(location => location.EnergyMode == "PerCard");
+        var playedCard = initial.Player.HandCards[0];
+        var play = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/cards/play",
+            new { cardId = playedCard.Id, locationSlot = perCardLocation.Slot });
+        Assert.Equal(HttpStatusCode.OK, play.StatusCode);
+        var afterPlay = (await play.Content.ReadFromJsonAsync<MatchStateResult>())!;
+        Assert.Equal(3, afterPlay.Player.HandCards.Count);
+        Assert.Equal(2, afterPlay.Player.Energy);
+        Assert.Contains(afterPlay.Player.BoardCards, card => card.Id == playedCard.Id
+            && card.LocationSlot == perCardLocation.Slot);
+
+        using var opponentClient = Client(second);
+        var opponentInitial = (await opponentClient.GetFromJsonAsync<MatchStateResult>(
+            $"/api/player/matchmaking/{current.MatchId}/state"))!;
+        var opponentCard = opponentInitial.Player.HandCards[0];
+        var opponentPlay = await opponentClient.PostAsJsonAsync(
+            $"/api/player/matchmaking/{current.MatchId}/cards/play",
+            new { cardId = opponentCard.Id, locationSlot = perCardLocation.Slot });
+        Assert.Equal(HttpStatusCode.OK, opponentPlay.StatusCode);
+        var opponentVisible = (await client.GetFromJsonAsync<MatchStateResult>(
+            $"/api/player/matchmaking/{current.MatchId}/state"))!;
+        Assert.Contains(opponentVisible.Opponent.BoardCards,
+            card => card.Id == opponentCard.Id && card.LocationSlot == perCardLocation.Slot);
+        Assert.Equal("/files/card-original.png",
+            opponentVisible.Opponent.BoardCards.Single(card => card.Id == opponentCard.Id).ImagePath);
+
+        var discardedCard = afterPlay.Player.HandCards[0];
+        var discard = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/cards/discard",
+            new { cardId = discardedCard.Id });
+        Assert.Equal(HttpStatusCode.OK, discard.StatusCode);
+        var afterDiscard = (await discard.Content.ReadFromJsonAsync<MatchStateResult>())!;
+        Assert.Contains(discardedCard.Id, afterDiscard.Player.CemeteryCardIds);
+        Assert.Equal(2, afterDiscard.Player.HandCards.Count);
+        Assert.Single(afterDiscard.Player.CemeteryCards);
+        Assert.Equal("/files/card-original.png", afterDiscard.Player.CemeteryCards[0].ImagePath);
+
+        await fixture.Execute($"UPDATE matches SET turn_ends_at=NOW()-INTERVAL '1 second' WHERE id='{current.MatchId}'");
+        var advance = await client.PostAsync($"/api/player/matchmaking/{current.MatchId}/turn/advance", null);
+        Assert.Equal(HttpStatusCode.OK, advance.StatusCode);
+        var next = (await advance.Content.ReadFromJsonAsync<MatchStateResult>())!;
+        Assert.Equal(3, next.Player.HandCards.Count);
+        Assert.Equal(5, next.Player.Energy);
+    }
+
+    [IntegrationFact]
+    public async Task Completing_match_records_winner_and_pays_ranked_pot_only_once()
+    {
+        await Seed();
+        await Start(first, "first-deck");
+        await Start(second, "second-deck");
+        Assert.Equal(1, await Process());
+        using var client = Client(first);
+        var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
+        await fixture.Execute($"""
+            UPDATE match_players
+            SET played_card_ids=ARRAY[(SELECT id FROM cards WHERE code='MATCH-1')],
+                played_location_slots=ARRAY[1]
+            WHERE match_id='{current.MatchId}' AND player_id='{first}';
+            UPDATE matches SET turn_number=6,turn_ends_at=NOW()-INTERVAL '1 second'
+            WHERE id='{current.MatchId}';
+            """);
+
+        var response = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/turn/advance",
+            new { turnNumber = 6 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = (await response.Content.ReadFromJsonAsync<MatchStateResult>())!;
+        Assert.Equal("Completed", result.Status);
+        Assert.Equal("Win", result.Result!.Outcome);
+        Assert.Equal(1, result.Result.PlayerLocationsWon);
+        Assert.Equal(8, result.Result.CubesAwarded);
+        Assert.Equal(12, await fixture.Count($"SELECT cubes FROM players WHERE id='{first}'"));
+        Assert.Equal(4, await fixture.Count($"SELECT cubes FROM players WHERE id='{second}'"));
+
+        var retry = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/turn/advance",
+            new { turnNumber = 6 });
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal("Win", (await retry.Content.ReadFromJsonAsync<MatchStateResult>())!.Result!.Outcome);
+        Assert.Equal(12, await fixture.Count($"SELECT cubes FROM players WHERE id='{first}'"));
+    }
+
+    [IntegrationFact]
+    public async Task A_draw_returns_both_ranked_stakes()
+    {
+        await Seed();
+        await Start(first, "first-deck");
+        await Start(second, "second-deck");
+        Assert.Equal(1, await Process());
+        using var client = Client(first);
+        var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
+        await fixture.Execute($"UPDATE matches SET turn_number=6,turn_ends_at=NOW()-INTERVAL '1 second' WHERE id='{current.MatchId}'");
+
+        var response = await client.PostAsJsonAsync($"/api/player/matchmaking/{current.MatchId}/turn/advance",
+            new { turnNumber = 6 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = (await response.Content.ReadFromJsonAsync<MatchStateResult>())!;
+        Assert.Equal("Draw", result.Result!.Outcome);
+        Assert.Equal(4, result.Result.CubesAwarded);
+        Assert.Equal(8, await fixture.Count($"SELECT cubes FROM players WHERE id='{first}'"));
+        Assert.Equal(8, await fixture.Count($"SELECT cubes FROM players WHERE id='{second}'"));
+    }
+
+    [IntegrationFact]
+    public async Task Missing_playable_locations_keeps_both_searches_open_and_retries_when_fixed()
+    {
+        await Seed();
+        await Start(first, "first-deck");
+        await Start(second, "second-deck");
+        await fixture.Execute("UPDATE locations SET active=false");
+
+        Assert.Equal(0, await Process());
+        Assert.Equal(0, await fixture.Count("SELECT count(*) FROM matches"));
+        Assert.Equal(2, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Searching' AND end_reason IS NOT NULL"));
+
+        await fixture.Execute("UPDATE locations SET active=true");
+        Assert.Equal(1, await Process());
+        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matches"));
+    }
+
+    [IntegrationFact]
+    public async Task Tournament_matches_use_the_same_preparation_rules()
+    {
+        await Seed();
+        var contextId = Guid.NewGuid();
+        await using var scope = fixture.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<MatchmakingService>();
+        await service.StartAsync(first, "first-deck", "Tournament", contextId, default);
+        await service.StartAsync(second, "second-deck", "Tournament", contextId, default);
+
+        Assert.Equal(1, await service.ProcessAsync(default));
+        Assert.Equal(1, await fixture.Count("""
+            SELECT count(*) FROM matches
+            WHERE context='Tournament' AND context_id IS NOT NULL AND wager_cubes=0
+                AND turn_number=1 AND turn_started_at IS NOT NULL AND turn_ends_at IS NOT NULL
+            """));
+        Assert.Equal(3, await fixture.Count("SELECT count(*) FROM match_location_choices"));
+        Assert.Equal(8, await fixture.Count("SELECT sum(cardinality(hand_card_ids)) FROM match_players"));
+    }
+
+    [IntegrationFact]
+    public async Task Player_can_save_an_owned_deck_and_enter_matchmaking_with_it()
+    {
+        await Seed();
+        await fixture.Execute("""
+            DROP VIEW matchmaking_deck_source;
+            CREATE VIEW matchmaking_deck_source AS
+            SELECT deck.id AS deck_id, deck.player_id, deck.name, cards.card_id
+            FROM player_decks deck
+            CROSS JOIN LATERAL unnest(deck.card_ids) AS cards(card_id);
+            """);
+        using var client = Client(first);
+        var cardCodes = Enumerable.Range(1, 12).Select(n => $"MATCH-{n}").ToArray();
+        var response = await client.PostAsJsonAsync("/api/player/decks",
+            new { name = "Mazo de prueba", cardCodes });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var deck = (await response.Content.ReadFromJsonAsync<PlayerDeckResult>())!;
+        Assert.Equal("Mazo de prueba", deck.Name);
+        Assert.Equal(12, deck.CardCodes.Count);
+
+        var options = await client.GetFromJsonAsync<IReadOnlyList<MatchmakingDeckOption>>(
+            "/api/player/matchmaking/decks");
+        Assert.Contains(options!, option => option.Id == deck.Id);
+        var search = await Start(first, deck.Id);
+        Assert.Equal("Searching", search.Status);
     }
 
     [IntegrationFact]
@@ -385,9 +618,10 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         await Start(first,"first-deck"); await Start(second,"second-deck");
         await Process();
         // Simula únicamente el contrato persistente que ejecutará el motor al finalizar.
-        await fixture.Execute("BEGIN; UPDATE matches SET status='Completed'; UPDATE match_players SET active=FALSE; COMMIT;");
+        await fixture.Execute($"BEGIN; UPDATE matches SET status='Completed'; UPDATE match_players SET active=FALSE; UPDATE players SET cubes=8 WHERE id='{first}'; COMMIT;");
         using var client = Client(first);
-        Assert.Equal(HttpStatusCode.NoContent,(await client.GetAsync("/api/player/matchmaking/current")).StatusCode);
+        var current = await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current");
+        Assert.Equal("Matched", current!.Status);
         Assert.Equal("Searching",(await Start(first,"first-other")).Status);
     }
 

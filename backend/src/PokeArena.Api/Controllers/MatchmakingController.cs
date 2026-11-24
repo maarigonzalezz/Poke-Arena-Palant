@@ -48,5 +48,37 @@ public sealed class MatchmakingController(MatchmakingService matchmaking) : Cont
         return Ok(await matchmaking.AcceptBotAsync(id, searchId, token));
     }
 
+    [HttpGet("{matchId:guid}/state")]
+    public async Task<IActionResult> MatchState(Guid matchId, CancellationToken token)
+    {
+        if (!TryPlayer(out var id)) return Unauthorized();
+        var state = await matchmaking.MatchStateAsync(id, matchId, token);
+        return state is null ? NotFound() : Ok(state);
+    }
+
+    [HttpPost("{matchId:guid}/turn/advance")]
+    public async Task<IActionResult> AdvanceTurn(Guid matchId, [FromBody] AdvanceMatchTurnRequest? request, CancellationToken token)
+    {
+        if (!TryPlayer(out var id)) return Unauthorized();
+        var state = await matchmaking.AdvanceMatchAsync(id, matchId, request?.TurnNumber, token);
+        return state is null ? NotFound() : Ok(state);
+    }
+
+    [HttpPost("{matchId:guid}/cards/play")]
+    public async Task<IActionResult> PlayCard(Guid matchId, [FromBody] PlayMatchCardRequest request, CancellationToken token)
+    {
+        if (!TryPlayer(out var id)) return Unauthorized();
+        var state = await matchmaking.PlayCardAsync(id, matchId, request.CardId, request.LocationSlot, token);
+        return state is null ? NotFound() : Ok(state);
+    }
+
+    [HttpPost("{matchId:guid}/cards/discard")]
+    public async Task<IActionResult> DiscardCard(Guid matchId, [FromBody] DiscardMatchCardRequest request, CancellationToken token)
+    {
+        if (!TryPlayer(out var id)) return Unauthorized();
+        var state = await matchmaking.DiscardCardAsync(id, matchId, request.CardId, token);
+        return state is null ? NotFound() : Ok(state);
+    }
+
     private bool TryPlayer(out Guid id) => Guid.TryParse(User.FindFirst("sub")?.Value, out id) && id != Guid.Empty;
 }
