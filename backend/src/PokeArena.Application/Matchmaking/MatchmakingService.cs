@@ -19,6 +19,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             throw new MatchmakingFailure("deck_required", "Debe seleccionar uno de sus decks.", 400);
         if (deckId.Length > MatchmakingRules.MaximumDeckIdLength)
             throw new MatchmakingFailure("invalid_deck_id", "El identificador del deck es inválido.", 400);
+        deckId = NormalizeDeckId(deckId);
         if (context is not MatchmakingRules.Ranked and not MatchmakingRules.Tournament
             || (context == MatchmakingRules.Ranked && contextId is not null)
             || (context == MatchmakingRules.Tournament && (contextId is null || contextId == Guid.Empty)))
@@ -180,6 +181,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         Func<CancellationToken, Task<T>> edit, CancellationToken token)
     {
         ValidateIdentity(playerId);
+        deckId = NormalizeDeckId(deckId);
         return repository.InTransactionAsync(async (session, ct) =>
         {
             PlayerAccess.RequireActive(await session.LockPlayerAsync(playerId, ct));
@@ -218,6 +220,9 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
     private MatchSearchResult Result(MatchSearch search) => new(search.Id, search.Status, search.Context, search.ContextId,
         search.DeckId, search.Elo, MatchmakingRules.EloRange(search.CreatedAt, clock.GetUtcNow().UtcDateTime),
         search.CreatedAt, search.MatchId, search.EndReason, MatchmakingRules.CanOfferBot(search, clock.GetUtcNow().UtcDateTime));
+
+    // Usa el mismo UUID para consultar mazos, reconocer reintentos y comprobar reservas.
+    private static string NormalizeDeckId(string deckId) => Guid.TryParse(deckId, out var id) ? id.ToString() : deckId;
 
     private static void ValidateIdentity(Guid playerId)
     {

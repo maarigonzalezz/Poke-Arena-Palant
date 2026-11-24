@@ -1,0 +1,122 @@
+/* Los estilos de la arena quedan limitados a Buscar Partida. */
+.matchmaking-page { padding-bottom: 12px; }
+.matchmaking-heading { margin-bottom: 28px; }
+.matchmaking-heading .eyebrow { color: var(--accent); font-size: 10px; font-weight: 750; letter-spacing: 1.6px; }
+.matchmaking-mode { display: inline-flex; align-items: center; gap: 8px; padding: 10px 15px; border: 1px solid #ead4dc; border-radius: 30px; background: #fbf0f3; color: #99344f; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.matchmaking-mode svg { width: 16px; height: 16px; }
+.matchmaking-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 22px; align-items: stretch; }
+.matchmaking-setup, .matchmaking-arena { min-width: 0; border: 1px solid var(--line); border-radius: 20px; }
+.matchmaking-setup { padding: clamp(22px, 2.5vw, 36px); background: white; box-shadow: 0 4px 18px #36212a04; }
+.matchmaking-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 28px; }
+.matchmaking-step { color: var(--accent); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.matchmaking-step > span { margin-left: 8px; color: #877580; font-size: 9px; letter-spacing: 1.3px; }
+.matchmaking-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 9px; border: 1px solid #eee6ea; border-radius: 7px; color: #7d5365; background: #fff; font-size: 11px; font-weight: 600; }
+.matchmaking-refresh svg { width: 14px; height: 14px; }
+.matchmaking-refresh:hover:not(:disabled) { color: var(--accent); border-color: #d5acb9; background: #fff8fa; }
+.matchmaking-setup h2 { margin: 0 0 9px; font-size: clamp(20px, 2vw, 25px); letter-spacing: -.7px; }
+.matchmaking-intro { margin: 0 0 27px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.matchmaking-deck-label { gap: 9px; font-size: 11px; }
+.matchmaking-deck-label select { min-height: 48px; padding: 12px; background: #fdfbfc; font-size: 13px; }
+.matchmaking-deck-preview { display: flex; align-items: center; gap: 15px; min-height: 116px; margin-top: 16px; padding: 18px 16px; border: 1px dashed #e4d8de; border-radius: 12px; background: #fcfafb; }
+.matchmaking-deck-preview.has-selection { border-style: solid; border-color: #ead2dc; background: #fdf5f8; }
+.matchmaking-deck-preview > div { flex: 1; min-width: 0; }
+.matchmaking-deck-preview > div > span { color: #856172; font-size: 9px; font-weight: 750; letter-spacing: 1.2px; }
+.matchmaking-deck-preview strong { display: block; margin-top: 5px; color: #49323f; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.matchmaking-deck-preview p { margin: 5px 0 0; color: #7d6673; font-size: 11px; line-height: 1.6; }
+.matchmaking-deck-art { position: relative; display: block; flex: 0 0 50px; height: 64px; }
+.matchmaking-deck-art > span { position: absolute; display: grid; place-items: center; inset: 5px 7px; border: 1px solid #c78ba0; border-radius: 6px; background: #f2dce5; transform: rotate(-14deg) translateX(-7px); }
+.matchmaking-deck-art > span:nth-child(2) { transform: rotate(13deg) translateX(6px); background: #e9becf; }
+.matchmaking-deck-art > span:last-child { inset: 3px 5px; transform: none; background: repeating-linear-gradient(135deg, #ffffff12 0 1px, transparent 1px 6px), #8f3d5b; color: #f8e5ed; border: 3px double #f5d6e3; box-shadow: 0 3px 6px #5c263c1a; }
+.matchmaking-deck-art svg { width: 19px; height: 19px; }
+.matchmaking-selection-mark { display: flex; flex: 0 0 auto; color: #a6506e; }
+.matchmaking-selection-mark svg { width: 18px; height: 18px; }
+.matchmaking-empty { padding: 12px 14px; border-radius: 8px; background: #faf6f0; color: #846443; font-size: 11px; line-height: 1.7; }
+.matchmaking-entry-note { display: flex; gap: 10px; align-items: center; margin: 26px 0 21px; }
+.matchmaking-cube { display: grid; flex: 0 0 32px; height: 32px; place-items: center; border: 1px solid #efdfb9; border-radius: 9px; color: #a77d29; background: #fffaee; font-size: 22px; }
+.matchmaking-entry-note p { margin: 0; max-width: 315px; color: #8d7c69; font-size: 10px; line-height: 1.7; }
+.matchmaking-entry-note strong { color: #745932; font-weight: 750; }
+.matchmaking-start { width: 100%; min-height: 47px; gap: 10px; border-radius: 10px; box-shadow: 0 4px 10px #b91c3c13; font-size: 12px; }
+.matchmaking-start > svg:first-child { width: 17px; height: 17px; }
+.matchmaking-start > svg:last-child:not(:first-child) { width: 14px; height: 14px; margin-left: auto; }
+.matchmaking-start:not(:has(svg:nth-of-type(2))) { justify-content: center; }
+.matchmaking-setup-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 13px 0 0; color: #7b6875; font-size: 10px; line-height: 1.6; text-align: center; }
+.matchmaking-setup-hint svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.matchmaking-arena { position: relative; overflow: hidden; padding: 26px clamp(20px, 2.5vw, 35px); background: radial-gradient(ellipse at 50% 35%, #fffafc, #f7edf2 72%); border-color: #eadce3; display: flex; flex-direction: column; justify-content: center; }
+.matchmaking-arena::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .3; background-image: radial-gradient(#be9aac 1px, transparent 1px); background-size: 19px 19px; mask-image: linear-gradient(transparent 25%, #000 100%); }
+.matchmaking-status, .matchmaking-search-actions { position: relative; }
+.matchmaking-status { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.matchmaking-status-tag { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #e5d7df; border-radius: 30px; background: #ffffffa6; color: #805b6e; font-size: 9px; font-weight: 750; letter-spacing: 1.1px; }
+.matchmaking-status-tag > span { width: 5px; height: 5px; border-radius: 50%; background: #b397a5; }
+.matchmaking-status-tag.is-active { border-color: #e1b7c7; color: #9b3b5d; }
+.matchmaking-status-tag.is-active > span { background: #b9466f; box-shadow: 0 0 0 3px #b9466f13; }
+.matchmaking-emblem { position: relative; display: grid; place-items: center; width: 175px; height: 175px; margin: 18px 0 14px; }
+.matchmaking-emblem > span { position: absolute; inset: 0; border: 1px solid #cda3b536; border-radius: 50%; }
+.matchmaking-emblem > span:nth-child(2) { inset: 17px; border-color: #cda3b560; }
+.matchmaking-emblem::before, .matchmaking-emblem::after { content: ""; position: absolute; top: 32px; left: 20px; width: 5px; height: 5px; border: 3px solid #fbf5f8; border-radius: 50%; background: #bb88a0; box-sizing: content-box; }
+.matchmaking-emblem::after { top: auto; left: auto; bottom: 25px; right: 26px; width: 4px; height: 4px; background: #d2a5b9; }
+.matchmaking-emblem > div { display: grid; place-items: center; width: 101px; height: 101px; border: 1px solid #eed6e1; border-radius: 28px; background: linear-gradient(145deg, #fff, #f4dce7); box-shadow: 0 10px 25px #7f3b5710, inset 0 0 0 6px #fff9; color: #a95175; transform: rotate(-7deg); }
+.matchmaking-emblem svg { width: 42px; height: 42px; stroke-width: 1.3; transform: rotate(7deg); }
+.matchmaking-status h2 { max-width: 350px; margin: 0 0 11px; color: #543348; font-size: clamp(21px, 2.3vw, 28px); letter-spacing: -.8px; line-height: 1.2; }
+.matchmaking-status-description { max-width: 305px; margin: 0; color: #806574; font-size: 12px; line-height: 1.85; }
+.matchmaking-elo { display: grid; grid-template-columns: 1fr 1fr; align-self: stretch; margin: 22px 0 0; padding: 15px 0; border: 1px solid #e8d5df; border-radius: 11px; background: #ffffffb3; }
+.matchmaking-elo > div + div { border-left: 1px solid #e8d5df; }
+.matchmaking-elo dt { color: #947d8b; font-size: 9px; }
+.matchmaking-elo dd { margin: 5px 0 0; color: #86425f; font-size: 25px; font-weight: 750; letter-spacing: -.6px; }
+.matchmaking-elo small { font-size: 10px; font-weight: 550; }
+.matchmaking-range-note { max-width: 280px; margin: 11px 0 0; color: #806574; font-size: 10px; line-height: 1.7; }
+.matchmaking-search-actions { margin-top: 21px; text-align: center; }
+.matchmaking-cancel { min-height: 36px; padding: 7px 13px; border: 1px solid #d8bdcb; border-radius: 8px; color: #8d5570; background: #fff9fc; font-size: 11px; font-weight: 650; }
+.matchmaking-cancel:hover:not(:disabled) { background: white; border-color: #b7829c; }
+.matchmaking-bot-offer { display: grid; grid-template-columns: 32px 1fr; gap: 9px 12px; margin-bottom: 16px; padding: 16px; border: 1px solid #d7c2de; border-radius: 12px; background: #fffcff; text-align: left; }
+.matchmaking-bot-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: #f0e5f5; color: #8b5a9d; }
+.matchmaking-bot-offer strong { color: #754c87; font-size: 12px; }
+.matchmaking-bot-offer p { margin: 4px 0 0; color: #7d6588; font-size: 11px; line-height: 1.7; }
+.matchmaking-bot-offer .player-primary { grid-column: 1 / -1; gap: 8px; min-height: 37px; margin-top: 3px; background: #835391; font-size: 11px; }
+.matchmaking-bot-offer .player-primary:hover:not(:disabled) { background: #70417e; }
+.matchmaking-bot-offer .player-primary svg { width: 15px; height: 15px; }
+.matchmaking-match-id { width: 100%; margin-top: 24px; padding: 14px; border: 1px solid #bdd8ce; border-radius: 11px; background: #ffffffc9; }
+.matchmaking-match-id > span { display: block; margin-bottom: 7px; color: #779b8c; font-size: 8px; font-weight: 700; letter-spacing: 1px; }
+.matchmaking-match-id code { color: #467562; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.matchmaking-arena.is-matched { background: radial-gradient(ellipse at 50% 35%, #fbfffc, #edf5f0 72%); border-color: #d6e5da; }
+.matchmaking-arena.is-matched .matchmaking-status h2 { color: #3f715b; }
+.matchmaking-arena.is-matched .matchmaking-emblem > div { color: #62967c; border-color: #d4e8dc; background: linear-gradient(145deg, white, #dfefe4); }
+.matchmaking-arena.is-matched .matchmaking-emblem > span { border-color: #9fc7b446; }
+.matchmaking-arena.is-matched .matchmaking-status-tag { color: #628a77; border-color: #d2e4d8; }
+.matchmaking-arena.is-matched .matchmaking-status-tag > span { background: #6f9e83; }
+.matchmaking-arena.is-matched .matchmaking-status-description { color: #567761; }
+.matchmaking-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 28px; padding: 23px 6px; border-top: 1px solid var(--line); }
+.matchmaking-guide > div { display: flex; gap: 10px; align-items: flex-start; }
+.matchmaking-guide > div > span { display: grid; flex: 0 0 31px; height: 31px; place-items: center; border: 1px solid #e8e0e5; border-radius: 9px; background: #fcf9fb; color: #9c7d8d; }
+.matchmaking-guide svg { width: 15px; height: 15px; }
+.matchmaking-guide strong { display: block; margin-top: 2px; color: #766270; font-size: 11px; font-weight: 650; }
+.matchmaking-guide p { margin: 5px 0 0; color: #7d6876; font-size: 11px; line-height: 1.6; }
+.matchmaking-error { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+.matchmaking-error .alert { flex: 1; margin: 0; }
+
+/* La animación indica actividad y respeta la preferencia de movimiento reducido. */
+@keyframes matchmaking-pulse { 0%, 100% { opacity: .5; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.04); } }
+.matchmaking-arena.is-searching .matchmaking-emblem > span:first-child { animation: matchmaking-pulse 3s ease-in-out infinite; }
+@media (max-width: 1100px) {
+  .matchmaking-layout { gap: 16px; }
+  .matchmaking-step > span { font-size: 8px; letter-spacing: .8px; }
+  .matchmaking-setup, .matchmaking-arena { padding: 23px; }
+}
+@media (max-width: 900px) {
+  .matchmaking-layout { grid-template-columns: 1fr; }
+  .matchmaking-arena { min-height: 350px; padding-block: 30px; }
+  .matchmaking-elo, .matchmaking-match-id { width: 100%; max-width: 380px; align-self: center; }
+  .matchmaking-bot-offer { max-width: 380px; margin-inline: auto; }
+}
+@media (max-width: 520px) {
+  .matchmaking-heading { gap: 14px; }
+  .matchmaking-mode { padding: 7px 11px; font-size: 10px; }
+  .matchmaking-setup, .matchmaking-arena { border-radius: 15px; padding: 22px 18px; }
+  .matchmaking-panel-heading { margin-bottom: 23px; }
+  .matchmaking-deck-preview { gap: 12px; padding-inline: 13px; }
+  .matchmaking-deck-preview strong { font-size: 13px; }
+  .matchmaking-selection-mark { display: none; }
+  .matchmaking-guide { grid-template-columns: 1fr; gap: 19px; margin-top: 24px; padding: 23px 3px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .matchmaking-arena.is-searching .matchmaking-emblem > span:first-child { animation: none; }
+}

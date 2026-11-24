@@ -9,10 +9,10 @@ namespace PokeArena.Tests.Integration;
 public sealed partial class MatchmakingTests
 {
     private Task OfferBot(Guid player) => fixture.Execute(
-        $"UPDATE matchmaking_searches SET created_at=NOW()-INTERVAL '61 seconds' WHERE player_id='{player}'");
+        $"UPDATE matchmaking_searches SET created_at='{DateTime.UtcNow.AddSeconds(-61):O}'::timestamptz WHERE player_id='{player}'");
 
     private Task StopPolling(Guid player) => fixture.Execute(
-        $"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '61 seconds' WHERE player_id='{player}'");
+        $"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-61):O}'::timestamptz WHERE player_id='{player}'");
 
     private static Task<HttpResponseMessage> AcceptBot(HttpClient client, Guid searchId) =>
         client.PostAsync($"/api/player/matchmaking/{searchId}/bot", null);
@@ -113,12 +113,13 @@ public sealed partial class MatchmakingTests
         await Seed();
         await Start(first, FirstDeck);
         await OfferBot(first);
-        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '59 seconds' WHERE player_id='{first}'");
+        // Usa el reloj de la aplicación; los límites exactos se verifican en MatchmakingRulesTests.
+        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-30):O}'::timestamptz WHERE player_id='{first}'");
         using var client = Client(first);
         var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
         Assert.Equal("Searching", current.Status);
         Assert.True(current.BotAvailable);
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE last_polled_at>NOW()-INTERVAL '5 seconds' AND created_at<NOW()-INTERVAL '60 seconds'"));
+        Assert.Equal(1, await fixture.Count($"SELECT count(*) FROM matchmaking_searches WHERE last_polled_at>'{DateTime.UtcNow.AddSeconds(-5):O}'::timestamptz AND created_at<'{DateTime.UtcNow.AddSeconds(-60):O}'::timestamptz"));
     }
 
     [IntegrationFact]
@@ -287,10 +288,10 @@ public sealed partial class MatchmakingTests
         await Seed();
         await Start(first, FirstDeck);
         await OfferBot(first);
-        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '30 seconds' WHERE player_id='{first}'");
+        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-30):O}'::timestamptz WHERE player_id='{first}'");
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "TestData/matchmaking_lifecycle.sql"));
         await fixture.Execute(script);
         await fixture.Execute(script);
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Searching' AND created_at<NOW()-INTERVAL '60 seconds' AND last_polled_at<NOW()-INTERVAL '20 seconds'"));
+        Assert.Equal(1, await fixture.Count($"SELECT count(*) FROM matchmaking_searches WHERE status='Searching' AND created_at<'{DateTime.UtcNow.AddSeconds(-60):O}'::timestamptz AND last_polled_at<'{DateTime.UtcNow.AddSeconds(-20):O}'::timestamptz"));
     }
 }
