@@ -3,7 +3,7 @@ using PokeArena.Domain.Matchmaking;
 
 namespace PokeArena.Application.Matchmaking;
 
-public sealed record MatchmakingDeck(string Id, Guid OwnerId, IReadOnlyList<long> CardIds);
+public sealed record MatchmakingDeck(string Id, IReadOnlyList<long> CardIds);
 public sealed record MatchmakingDeckOption(string Id, string Name);
 public sealed record StartMatchSearchRequest(string? DeckId);
 public sealed record MatchSearchResult(Guid Id, string Status, string Context, Guid? ContextId,

@@ -9,10 +9,10 @@ namespace PokeArena.Tests.Integration;
 public sealed partial class MatchmakingTests
 {
     private Task OfferBot(Guid player) => fixture.Execute(
-        $"UPDATE matchmaking_searches SET created_at=NOW()-INTERVAL '61 seconds' WHERE player_id='{player}'");
+        $"UPDATE matchmaking_searches SET created_at='{DateTime.UtcNow.AddSeconds(-61):O}'::timestamptz WHERE player_id='{player}'");
 
     private Task StopPolling(Guid player) => fixture.Execute(
-        $"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '61 seconds' WHERE player_id='{player}'");
+        $"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-61):O}'::timestamptz WHERE player_id='{player}'");
 
     private static Task<HttpResponseMessage> AcceptBot(HttpClient client, Guid searchId) =>
         client.PostAsync($"/api/player/matchmaking/{searchId}/bot", null);
@@ -21,7 +21,7 @@ public sealed partial class MatchmakingTests
     public async Task Bot_offer_is_computed_for_open_searches_and_remains_available_until_accepted()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         Assert.False(search.BotAvailable);
         using var client = Client(first);
         var early = await AcceptBot(client, search.Id);
@@ -36,7 +36,7 @@ public sealed partial class MatchmakingTests
             Assert.Null(current.MatchId);
         }
         // Modificar el origen después de entrar no cambia el deck reservado para la partida.
-        await fixture.Execute("DELETE FROM test_matchmaking_deck_cards WHERE deck_id='first-deck'");
+        await fixture.Execute($"DELETE FROM player_deck_cards WHERE deck_id='{FirstDeck}'");
         var response = await AcceptBot(client, search.Id);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var matched = (await response.Content.ReadFromJsonAsync<MatchSearchResult>())!;
@@ -44,7 +44,7 @@ public sealed partial class MatchmakingTests
         Assert.NotNull(matched.MatchId);
         Assert.False(matched.BotAvailable);
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matches WHERE is_bot AND status='Active' AND cardinality(bot_card_ids)=12"));
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM match_players WHERE active AND deck_id='first-deck'"));
+        Assert.Equal(1, await fixture.Count($"SELECT count(*) FROM match_players WHERE active AND deck_id='{FirstDeck}'"));
         Assert.Equal(1, await fixture.Count("""
             SELECT count(*) FROM matches m JOIN match_players p ON p.match_id=m.id
             WHERE ARRAY(SELECT unnest(m.bot_card_ids) ORDER BY 1)
@@ -61,7 +61,7 @@ public sealed partial class MatchmakingTests
     public async Task Concurrent_bot_acceptances_create_exactly_one_match_and_are_idempotent()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         using var client = Client(first);
         var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => AcceptBot(client, search.Id)));
@@ -82,7 +82,7 @@ public sealed partial class MatchmakingTests
     public async Task A_late_poll_expires_without_reviving_the_search_and_a_new_search_can_start()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await StopPolling(first);
         using var client = Client(first);
         var expired = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
@@ -92,7 +92,7 @@ public sealed partial class MatchmakingTests
         Assert.Contains("60", expired.Message);
         var cancel = await client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
         Assert.Equal("Expired", (await cancel.Content.ReadFromJsonAsync<MatchSearchResult>())!.Status);
-        var replacement = await Start(first, "first-other");
+        var replacement = await Start(first, FirstOtherDeck);
         Assert.NotEqual(search.Id, replacement.Id);
         Assert.Equal("Searching", replacement.Status);
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Expired'"));
@@ -103,9 +103,9 @@ public sealed partial class MatchmakingTests
     public async Task Restarting_search_directly_releases_an_inactive_reservation_atomically()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await StopPolling(first);
-        var replacement = await Start(first, "first-other");
+        var replacement = await Start(first, FirstOtherDeck);
         Assert.NotEqual(search.Id, replacement.Id);
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Expired'"));
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Searching'"));
@@ -115,22 +115,23 @@ public sealed partial class MatchmakingTests
     public async Task Polling_keeps_presence_and_does_not_reset_the_time_waiting_for_a_bot()
     {
         await Seed();
-        await Start(first, "first-deck");
+        await Start(first, FirstDeck);
         await OfferBot(first);
-        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '59 seconds' WHERE player_id='{first}'");
+        // Usa el reloj de la aplicación; los límites exactos se verifican en MatchmakingRulesTests.
+        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-30):O}'::timestamptz WHERE player_id='{first}'");
         using var client = Client(first);
         var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
         Assert.Equal("Searching", current.Status);
         Assert.True(current.BotAvailable);
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE last_polled_at>NOW()-INTERVAL '5 seconds' AND created_at<NOW()-INTERVAL '60 seconds'"));
+        Assert.Equal(1, await fixture.Count($"SELECT count(*) FROM matchmaking_searches WHERE last_polled_at>'{DateTime.UtcNow.AddSeconds(-5):O}'::timestamptz AND created_at<'{DateTime.UtcNow.AddSeconds(-60):O}'::timestamptz"));
     }
 
     [IntegrationFact]
     public async Task Inactive_candidates_are_never_paired_even_outside_the_expiration_batch()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
-        await Start(second, "second-deck");
+        var search = await Start(first, FirstDeck);
+        await Start(second, SecondDeck);
         await StopPolling(first);
         // Llena el lote anterior para que el candidato vencido se revise al intentar emparejarlo.
         await fixture.Execute("""
@@ -151,7 +152,7 @@ public sealed partial class MatchmakingTests
     public async Task Accepting_a_bot_after_inactivity_commits_expiration_before_returning_conflict()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         await StopPolling(first);
         using var client = Client(first);
@@ -166,12 +167,12 @@ public sealed partial class MatchmakingTests
     public async Task Cancelled_searches_do_not_offer_a_bot_and_never_pair()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         using var client = Client(first);
         var response = await client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
         Assert.Equal("Cancelled", (await response.Content.ReadFromJsonAsync<MatchSearchResult>())!.Status);
-        await Start(second, "second-deck");
+        await Start(second, SecondDeck);
         Assert.Equal(0, await Process());
         Assert.Equal(HttpStatusCode.Conflict, (await AcceptBot(client, search.Id)).StatusCode);
         var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
@@ -184,9 +185,9 @@ public sealed partial class MatchmakingTests
     public async Task Bot_acceptance_racing_with_human_pairing_reserves_the_player_only_once()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
-        await Start(second, "second-deck");
+        await Start(second, SecondDeck);
         using var client = Client(first);
         var accept = AcceptBot(client, search.Id);
         var processing = Process();
@@ -206,7 +207,7 @@ public sealed partial class MatchmakingTests
     public async Task Cancelling_racing_with_bot_acceptance_has_a_single_consistent_outcome()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         using var client = Client(first);
         var cancel = client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
@@ -234,7 +235,7 @@ public sealed partial class MatchmakingTests
     public async Task Bot_creation_failure_rolls_back_the_match_and_preserves_the_open_offer()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         await fixture.Execute("""
             CREATE FUNCTION reject_bot_participant() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -257,7 +258,7 @@ public sealed partial class MatchmakingTests
     public async Task Bot_acceptance_rechecks_balance_and_never_accepts_a_tournament_search()
     {
         await Seed();
-        var search = await Start(first, "first-deck");
+        var search = await Start(first, FirstDeck);
         await OfferBot(first);
         await fixture.Execute($"UPDATE players SET cubes=7 WHERE id='{first}'");
         using var client = Client(first);
@@ -265,7 +266,7 @@ public sealed partial class MatchmakingTests
         Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Cancelled'"));
         await using var scope = fixture.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<MatchmakingService>();
-        var tournament = await service.StartAsync(second, "second-deck", "Tournament", Guid.NewGuid(), default);
+        var tournament = await service.StartAsync(second, SecondDeck, "Tournament", Guid.NewGuid(), default);
         await OfferBot(second);
         using var other = Client(second);
         Assert.Equal(HttpStatusCode.Conflict, (await AcceptBot(other, tournament.Id)).StatusCode);
@@ -277,7 +278,7 @@ public sealed partial class MatchmakingTests
     public async Task Running_worker_expires_an_unattended_search_without_a_client_request()
     {
         await Seed();
-        await Start(first, "first-deck");
+        await Start(first, FirstDeck);
         await StopPolling(first);
         await using var instance = fixture.MatchmakingInstance();
         using var host = instance.CreateClient();
@@ -289,12 +290,12 @@ public sealed partial class MatchmakingTests
     public async Task Lifecycle_migration_can_be_reapplied_without_resetting_presence_or_matches()
     {
         await Seed();
-        await Start(first, "first-deck");
+        await Start(first, FirstDeck);
         await OfferBot(first);
-        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at=NOW()-INTERVAL '30 seconds' WHERE player_id='{first}'");
+        await fixture.Execute($"UPDATE matchmaking_searches SET last_polled_at='{DateTime.UtcNow.AddSeconds(-30):O}'::timestamptz WHERE player_id='{first}'");
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "TestData/matchmaking_lifecycle.sql"));
         await fixture.Execute(script);
         await fixture.Execute(script);
-        Assert.Equal(1, await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Searching' AND created_at<NOW()-INTERVAL '60 seconds' AND last_polled_at<NOW()-INTERVAL '20 seconds'"));
+        Assert.Equal(1, await fixture.Count($"SELECT count(*) FROM matchmaking_searches WHERE status='Searching' AND created_at<'{DateTime.UtcNow.AddSeconds(-60):O}'::timestamptz AND last_polled_at<'{DateTime.UtcNow.AddSeconds(-20):O}'::timestamptz"));
     }
 }

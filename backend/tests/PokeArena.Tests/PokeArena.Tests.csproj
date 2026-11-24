@@ -39,6 +39,7 @@
     <None Include="../../../database/postgres/migrations/011_player_decks.sql" Link="TestData/player_decks.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../database/postgres/migrations/012_match_card_actions.sql" Link="TestData/match_card_actions.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../../database/postgres/migrations/013_match_results.sql" Link="TestData/match_results.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../database/postgres/migrations/010_player_decks.sql" Link="TestData/player_decks.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

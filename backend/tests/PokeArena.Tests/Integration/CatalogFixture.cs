@@ -71,6 +71,7 @@ public class CatalogFixture : IAsyncLifetime
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/player_decks.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/match_card_actions.sql")));
             await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"TestData/match_results.sql")));
+            await ApplyPlayerDeckMigration();
             app = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Testing");
@@ -112,6 +113,9 @@ public class CatalogFixture : IAsyncLifetime
 
     public async Task Execute(string sql)
     { await using var command=Database.CreateCommand(sql); await command.ExecuteNonQueryAsync(); }
+
+    public async Task ApplyPlayerDeckMigration() =>
+        await Execute(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "TestData/player_decks.sql")));
 
     public async Task<long> Count(string sql)
     { await using var command=Database.CreateCommand(sql); return Convert.ToInt64(await command.ExecuteScalarAsync()); }

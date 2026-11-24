@@ -1,4 +1,4 @@
-import type { CardRarity, CardType } from "../types/catalogs";
+import type { Card, CardRarity, CardType } from "../types/catalogs";
 import type { PlayerCatalogCard } from "../pages/playerCatalogTypes";
 import { API_BASE_URL } from "./api";
 
@@ -35,7 +35,10 @@ export interface PlayerDeck {
   name: string;
   cardCodes: string[];
   createdAt: string;
+  cards?: DeckCardPreview[] | null;
 }
+
+export type DeckCardPreview = Pick<Card, "code" | "name" | "type" | "cost" | "power" | "imageUrl" | "imageSmallUrl">;
 
 export interface CreatePlayerDeckInput {
   name: string;
@@ -271,12 +274,17 @@ async function readCardPage(path: string, signal?: AbortSignal): Promise<PlayerC
   })) };
 }
 
-/** Saves a 12-card deck; the server must validate ownership and deck rules. */
+export function getPlayerDecks(signal?: AbortSignal): Promise<PlayerDeck[]> {
+  return request(PLAYER_API_ROUTES.decks, { signal, cache: "no-store" });
+}
+
 export async function createPlayerDeck(
   input: CreatePlayerDeckInput,
+  idempotencyKey: string,
 ): Promise<PlayerDeck> {
   return request<PlayerDeck>(PLAYER_API_ROUTES.decks, {
     method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify(input),
   });
 }

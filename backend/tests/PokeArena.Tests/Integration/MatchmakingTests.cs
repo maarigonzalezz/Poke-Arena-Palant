@@ -13,6 +13,9 @@ namespace PokeArena.Tests.Integration;
 [Trait("Category","Integration")]
 public sealed partial class MatchmakingTests(CatalogFixture fixture)
 {
+    private const string FirstDeck = "00000000-0000-4000-8000-000000000001";
+    private const string FirstOtherDeck = "00000000-0000-4000-8000-000000000002";
+    private const string SecondDeck = "00000000-0000-4000-8000-000000000003";
     private readonly Guid first = Guid.NewGuid();
     private readonly Guid second = Guid.NewGuid();
 
@@ -41,10 +44,11 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
                     ('Arena tres','Prueba',4,'PerCard',1,'None','null','Ready',true,1);
             INSERT INTO player_cards(player_id,card_id,copies)
                 SELECT p.id,c.id,1 FROM players p CROSS JOIN cards c WHERE c.code<>'MATCH-13';
-            INSERT INTO test_matchmaking_decks VALUES
-                ('first-deck','{first}','Primero'),('first-other','{first}','Otro'),('second-deck','{second}','Segundo');
-            INSERT INTO test_matchmaking_deck_cards
-                SELECT d.id,c.id FROM test_matchmaking_decks d CROSS JOIN cards c WHERE c.code<>'MATCH-13';
+            INSERT INTO player_decks(id,player_id,name,name_key) VALUES
+                ('{FirstDeck}','{first}','Primero','PRIMERO'),('{FirstOtherDeck}','{first}','Otro','OTRO'),
+                ('{SecondDeck}','{second}','Segundo','SEGUNDO');
+            INSERT INTO player_deck_cards
+                SELECT d.id,c.id FROM player_decks d CROSS JOIN cards c WHERE c.code<>'MATCH-13';
             """);
     }
 
@@ -67,9 +71,9 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Valid_search_checks_server_balance_and_creates_one_match_with_both_decks()
     {
         await Seed();
-        var a = await Start(first,"first-deck");
+        var a = await Start(first,FirstDeck);
         Assert.Equal("Searching",a.Status);
-        await Start(second,"second-deck");
+        await Start(second,SecondDeck);
         Assert.Equal(1,await Process());
         Assert.Equal(0,await Process());
         Assert.Equal(1,await fixture.Count("SELECT count(*) FROM matches"));
@@ -81,7 +85,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         using var client = Client(first);
         var current = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
         Assert.NotNull(current.MatchId);
-        Assert.Equal(HttpStatusCode.Conflict,(await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-other" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,(await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstOtherDeck })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict,(await client.DeleteAsync($"/api/player/matchmaking/{a.Id}")).StatusCode);
         Assert.Equal(12,await fixture.Count("SELECT cardinality(card_ids) FROM match_players WHERE deck_id='first-deck'"));
     }
@@ -316,21 +320,19 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         using var client = Client(first);
         foreach (var (deck,code,status) in new[] {
             ("","deck_required",HttpStatusCode.BadRequest),
-            ("missing","deck_not_found",HttpStatusCode.BadRequest),
-            ("second-deck","deck_not_owned",HttpStatusCode.Forbidden) })
+            ("missing","deck_not_found",HttpStatusCode.NotFound),
+            (SecondDeck,"deck_not_found",HttpStatusCode.NotFound) })
         {
             var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=deck });
             Assert.Equal(status,response.StatusCode);
             Assert.Contains(code,await response.Content.ReadAsStringAsync());
         }
-        await fixture.Execute("DELETE FROM test_matchmaking_deck_cards WHERE deck_id='first-deck' AND card_id=(SELECT min(id) FROM cards)");
-        Assert.Contains("invalid_deck",await (await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" })).Content.ReadAsStringAsync());
-        await fixture.Execute("""
-            INSERT INTO test_matchmaking_deck_cards SELECT 'first-deck',max(id) FROM cards;
+        await fixture.Execute($"DELETE FROM player_deck_cards WHERE deck_id='{FirstDeck}' AND card_id=(SELECT min(id) FROM cards)");
+        Assert.Contains("invalid_deck",await (await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck })).Content.ReadAsStringAsync());
+        await fixture.Execute($"""
+            INSERT INTO player_deck_cards SELECT '{FirstDeck}',max(id) FROM cards;
             """);
-        Assert.Contains("deck_cards_not_owned",await (await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" })).Content.ReadAsStringAsync());
-        await fixture.Execute("UPDATE test_matchmaking_deck_cards SET card_id=(SELECT min(id) FROM cards) WHERE deck_id='first-deck'");
-        Assert.Contains("invalid_deck",await (await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" })).Content.ReadAsStringAsync());
+        Assert.Contains("deck_cards_not_owned",await (await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck })).Content.ReadAsStringAsync());
         Assert.Equal(0,await fixture.Count("SELECT count(*) FROM matchmaking_searches"));
     }
 
@@ -339,10 +341,10 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     {
         await Seed();
         using var anonymous = fixture.Client(null);
-        Assert.Equal(HttpStatusCode.Unauthorized,(await anonymous.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,(await anonymous.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck })).StatusCode);
         await fixture.Execute($"UPDATE players SET cubes=7 WHERE id='{first}'");
         using var client = Client(first);
-        var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck", cubes=999,elo=999,playerId=second });
+        var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck, cubes=999,elo=999,playerId=second });
         Assert.Equal(HttpStatusCode.BadRequest,response.StatusCode);
         var text = await response.Content.ReadAsStringAsync();
         Assert.Contains("insufficient_cubes",text);
@@ -355,15 +357,15 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Concurrent_requests_keep_one_search_and_prevent_deck_changes_until_cancelled()
     {
         await Seed();
-        var results = await Task.WhenAll(Enumerable.Range(0,8).Select(_=>Start(first,"first-deck")));
+        var results = await Task.WhenAll(Enumerable.Range(0,8).Select(_=>Start(first,FirstDeck)));
         Assert.Single(results.Select(x=>x.Id).Distinct());
         using var client = Client(first);
-        var change = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-other" });
+        var change = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstOtherDeck });
         Assert.Equal(HttpStatusCode.Conflict,change.StatusCode);
         Assert.Contains("deck_locked",await change.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK,(await client.DeleteAsync($"/api/player/matchmaking/{results[0].Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,(await client.DeleteAsync($"/api/player/matchmaking/{results[0].Id}")).StatusCode);
-        var another = await Start(first,"first-other");
+        var another = await Start(first,FirstOtherDeck);
         Assert.NotEqual(results[0].Id,another.Id);
         Assert.Equal(1,await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE status='Searching'"));
     }
@@ -374,14 +376,14 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         await Seed();
         await using var scope = fixture.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<MatchmakingService>();
-        var tournament = await service.StartAsync(first,"first-deck","Tournament",Guid.NewGuid(),default);
+        var tournament = await service.StartAsync(first,FirstDeck,"Tournament",Guid.NewGuid(),default);
         using var client = Client(first);
-        var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" });
+        var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck });
         Assert.Equal(HttpStatusCode.Conflict,response.StatusCode);
         Assert.Contains("Tournament",await response.Content.ReadAsStringAsync());
         await service.CancelAsync(first,tournament.Id,default);
-        await Start(first,"first-deck");
-        var conflict = await Assert.ThrowsAsync<MatchmakingFailure>(()=>service.StartAsync(first,"first-deck","Tournament",Guid.NewGuid(),default));
+        await Start(first,FirstDeck);
+        var conflict = await Assert.ThrowsAsync<MatchmakingFailure>(()=>service.StartAsync(first,FirstDeck,"Tournament",Guid.NewGuid(),default));
         Assert.Equal("search_already_open",conflict.Code);
     }
 
@@ -390,7 +392,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     {
         await Seed();
         await fixture.Execute($"UPDATE players SET elo=500 WHERE id='{second}'");
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         Assert.Equal(0,await Process());
         await fixture.Execute($"UPDATE matchmaking_searches SET created_at=NOW()-INTERVAL '3 minutes' WHERE player_id='{first}'");
         Assert.Equal(0,await Process());
@@ -398,7 +400,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         Assert.Equal(1,await Process());
         await Seed();
         await fixture.Execute($"UPDATE players SET elo=501 WHERE id='{second}'");
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await fixture.Execute("UPDATE matchmaking_searches SET created_at=NOW()-INTERVAL '1 hour'");
         Assert.Equal(0,await Process());
     }
@@ -407,7 +409,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Multiple_processors_never_create_two_matches_for_a_player()
     {
         await Seed();
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         var counts = await Task.WhenAll(Enumerable.Range(0,8).Select(_=>Process()));
         Assert.Equal(1,counts.Sum());
         Assert.Equal(1,await fixture.Count("SELECT count(*) FROM matches"));
@@ -418,7 +420,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Failure_between_matching_and_creation_rolls_back_and_both_remain_searching()
     {
         await Seed();
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await fixture.Execute("""
             CREATE OR REPLACE FUNCTION reject_match_player() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN RAISE EXCEPTION 'forced failure'; END $$;
@@ -437,13 +439,13 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Deck_snapshot_cannot_be_changed_and_other_players_cannot_cancel_the_search()
     {
         await Seed();
-        var search = await Start(first,"first-deck");
+        var search = await Start(first,FirstDeck);
         using var other = Client(second);
         Assert.Equal(HttpStatusCode.NotFound,(await other.DeleteAsync($"/api/player/matchmaking/{search.Id}")).StatusCode);
-        await fixture.Execute("DELETE FROM test_matchmaking_deck_cards WHERE deck_id='first-deck'");
-        await Start(second,"second-deck");
+        await fixture.Execute($"DELETE FROM player_deck_cards WHERE deck_id='{FirstDeck}'");
+        await Start(second,SecondDeck);
         Assert.Equal(1,await Process());
-        Assert.Equal(12,await fixture.Count("SELECT cardinality(card_ids) FROM match_players WHERE deck_id='first-deck'"));
+        Assert.Equal(12,await fixture.Count($"SELECT cardinality(card_ids) FROM match_players WHERE deck_id='{FirstDeck}'"));
     }
 
     [IntegrationFact]
@@ -451,14 +453,21 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     {
         await Seed();
         await fixture.Execute("DROP VIEW matchmaking_deck_source");
-        using var client = Client(first);
-        var list = await client.GetAsync("/api/player/matchmaking/decks");
-        Assert.Equal(HttpStatusCode.ServiceUnavailable,list.StatusCode);
-        Assert.Contains("decks_not_integrated",await list.Content.ReadAsStringAsync());
-        var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId="first-deck" });
-        Assert.Equal(HttpStatusCode.ServiceUnavailable,response.StatusCode);
-        Assert.Contains("decks_not_integrated",await response.Content.ReadAsStringAsync());
-        Assert.Equal(0,await fixture.Count("SELECT count(*) FROM matchmaking_searches"));
+        try
+        {
+            using var client = Client(first);
+            var list = await client.GetAsync("/api/player/matchmaking/decks");
+            Assert.Equal(HttpStatusCode.ServiceUnavailable,list.StatusCode);
+            Assert.Contains("decks_not_integrated",await list.Content.ReadAsStringAsync());
+            var response = await client.PostAsJsonAsync("/api/player/matchmaking/ranked",new { deckId=FirstDeck });
+            Assert.Equal(HttpStatusCode.ServiceUnavailable,response.StatusCode);
+            Assert.Contains("decks_not_integrated",await response.Content.ReadAsStringAsync());
+            Assert.Equal(0,await fixture.Count("SELECT count(*) FROM matchmaking_searches"));
+        }
+        finally
+        {
+            await fixture.ApplyPlayerDeckMigration();
+        }
     }
 
     [IntegrationFact]
@@ -469,36 +478,36 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
         var response = await client.GetAsync("/api/player/matchmaking/decks");
         Assert.Equal(HttpStatusCode.OK,response.StatusCode);
         var decks = (await response.Content.ReadFromJsonAsync<List<MatchmakingDeckOption>>())!;
-        Assert.Equal(new[] { "first-other", "first-deck" },decks.Select(x=>x.Id));
-        Assert.DoesNotContain(decks,x=>x.Id=="second-deck");
+        Assert.Equal(new[] { FirstOtherDeck, FirstDeck },decks.Select(x=>x.Id));
+        Assert.DoesNotContain(decks,x=>x.Id==SecondDeck);
     }
 
     [IntegrationFact]
     public async Task Deck_edit_guard_blocks_changes_while_searching_and_while_playing()
     {
         await Seed();
-        var search = await Start(first,"first-deck");
+        var search = await Start(first,FirstDeck);
         await using var scope = fixture.CreateScope();
         var guard = scope.ServiceProvider.GetRequiredService<IMatchmakingDeckGuard>();
         var db = scope.ServiceProvider.GetRequiredService<PokeArenaDbContext>();
         Task<int> Edit(CancellationToken ct) => db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE test_matchmaking_decks SET name={'X'} WHERE id={"first-deck"}",ct);
-        var failure = await Assert.ThrowsAsync<MatchmakingFailure>(()=>guard.WithUnlockedDeckAsync(first,"first-deck",Edit,default));
+            $"UPDATE player_decks SET name={'X'}, name_key={'X'} WHERE id={Guid.Parse(FirstDeck)}",ct);
+        var failure = await Assert.ThrowsAsync<MatchmakingFailure>(()=>guard.WithUnlockedDeckAsync(first,FirstDeck,Edit,default));
         Assert.Equal("deck_locked",failure.Code);
         using var client = Client(first);
         await client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
-        Assert.Equal(1,await guard.WithUnlockedDeckAsync(first,"first-deck",Edit,default));
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        Assert.Equal(1,await guard.WithUnlockedDeckAsync(first,FirstDeck,Edit,default));
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await Process();
         Assert.Equal("deck_locked",(await Assert.ThrowsAsync<MatchmakingFailure>(()=>
-            guard.WithUnlockedDeckAsync(first,"first-deck",Edit,default))).Code);
+            guard.WithUnlockedDeckAsync(first,FirstDeck,Edit,default))).Code);
     }
 
     [IntegrationFact]
     public async Task A_player_who_spends_below_the_minimum_while_waiting_is_not_matched()
     {
         await Seed();
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await fixture.Execute($"UPDATE players SET cubes=0 WHERE id='{first}'");
         Assert.Equal(0,await Process());
         using var client = Client(first);
@@ -511,8 +520,8 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Two_running_apis_match_automatically_without_manual_processing()
     {
         await Seed();
-        var search = await Start(first,"first-deck");
-        await Start(second,"second-deck");
+        var search = await Start(first,FirstDeck);
+        await Start(second,SecondDeck);
         await using var instanceA = fixture.MatchmakingInstance();
         await using var instanceB = fixture.MatchmakingInstance();
         using var hostA = instanceA.CreateClient();
@@ -533,7 +542,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Automatic_worker_recovers_after_a_database_failure_without_blocking_players()
     {
         await Seed();
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await fixture.Execute("""
             CREATE SEQUENCE test_worker_attempts;
             CREATE FUNCTION reject_worker_match() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -565,7 +574,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task A_search_survives_an_api_restart_and_matches_when_a_rival_arrives()
     {
         await Seed();
-        await Start(first,"first-deck");
+        await Start(first,FirstDeck);
         using var client = Client(first);
         // Compara la fecha persistida, cuya precisión en PostgreSQL es de microsegundos.
         var original = (await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current"))!;
@@ -574,7 +583,7 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
             using var host = oldInstance.CreateClient();
             await Eventually(async () => await fixture.Count("SELECT count(*) FROM matchmaking_searches WHERE last_checked_at>created_at") == 1);
         }
-        await Start(second,"second-deck");
+        await Start(second,SecondDeck);
         await using var newInstance = fixture.MatchmakingInstance();
         using var newHost = newInstance.CreateClient();
         await Eventually(async () => await fixture.Count("SELECT count(*) FROM matches") == 1);
@@ -588,8 +597,8 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Cancelling_during_pairing_cannot_leave_a_partial_match()
     {
         await Seed();
-        var search = await Start(first,"first-deck");
-        await Start(second,"second-deck");
+        var search = await Start(first,FirstDeck);
+        await Start(second,SecondDeck);
         using var client = Client(first);
         var cancel = client.DeleteAsync($"/api/player/matchmaking/{search.Id}");
         var process = Process();
@@ -615,14 +624,14 @@ public sealed partial class MatchmakingTests(CatalogFixture fixture)
     public async Task Finished_matches_do_not_leave_players_or_decks_reserved()
     {
         await Seed();
-        await Start(first,"first-deck"); await Start(second,"second-deck");
+        await Start(first,FirstDeck); await Start(second,SecondDeck);
         await Process();
         // Simula únicamente el contrato persistente que ejecutará el motor al finalizar.
         await fixture.Execute($"BEGIN; UPDATE matches SET status='Completed'; UPDATE match_players SET active=FALSE; UPDATE players SET cubes=8 WHERE id='{first}'; COMMIT;");
         using var client = Client(first);
         var current = await client.GetFromJsonAsync<MatchSearchResult>("/api/player/matchmaking/current");
         Assert.Equal("Matched", current!.Status);
-        Assert.Equal("Searching",(await Start(first,"first-other")).Status);
+        Assert.Equal("Searching",(await Start(first,FirstOtherDeck)).Status);
     }
 
     private static async Task Eventually(Func<Task<bool>> condition)
