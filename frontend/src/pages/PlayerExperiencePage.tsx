@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { CARD_TYPES } from "../types/catalogs";
 import logo from "../assets/images (3).jpg";
 import { type PlayerCatalogCard } from "./playerCatalogTypes";
@@ -10,7 +10,9 @@ type Stage = "login" | "welcome" | "game";
 type Section = "catalog" | "collection" | "decks" | "matchmaking";
 
 import PlayerCard from "../components/PlayerCard";
+import SavedDecks from "../components/SavedDecks";
 import { GAME_RULES } from "../constants/gameRules";
+import { createPlayerDeck } from "../services/playerApi";
 import FindMatchPage from "./FindMatchPage";
 
 const PAGE_SIZE = GAME_RULES.catalogPageSize;
@@ -25,7 +27,6 @@ interface PlayerExperiencePageProps {
   loginError?: string;
   loginStatus?: string;
   initialCollectionMessage?: string | null;
-  onSaveDeck?: (name: string, cardCodes: string[]) => Promise<void>;
   cards?: PlayerCatalogCard[];
   remoteData?: boolean;
   cubeBalance?: number;
@@ -42,7 +43,6 @@ export default function PlayerExperiencePage({
   loginError: externalLoginError,
   loginStatus,
   initialCollectionMessage,
-  onSaveDeck,
   cards: initialCards = PLAYER_TEST_CARDS,
   remoteData = false,
   cubeBalance = STARTING_CUBE_BALANCE,
@@ -66,9 +66,14 @@ export default function PlayerExperiencePage({
     ? [...new Map([...catalogPage.knownCards, ...collectionPage.knownCards].map(card => [card.code, card])).values()]
     : initialCards, [remoteData, initialCards, catalogPage.knownCards, collectionPage.knownCards]);
   const [deckCards, setDeckCards] = useState<string[]>([]);
-  const [deckName, setDeckName] = useState("Mi primer mazo");
-  const [deckSaved, setDeckSaved] = useState(false);
+  const [deckName, setDeckName] = useState("");
+  const [savedDeckName, setSavedDeckName] = useState("");
+  const [deckListVersion, setDeckListVersion] = useState(0);
+  const [savingDeck, setSavingDeck] = useState(false);
   const [deckError, setDeckError] = useState("");
+  const deckRequest = useRef<{ fingerprint: string; key: string } | null>(null);
+  const deckSaveInProgress = useRef(false);
+  const cardsByCode = useMemo(() => new Map(cards.map(card => [card.code, card])), [cards]);
   const ownedCards = useMemo(
     () => cards.filter((card) => card.quantity > 0),
     [cards],
@@ -92,7 +97,8 @@ export default function PlayerExperiencePage({
   }
 
   function toggleDeckCard(code: string) {
-    setDeckSaved(false);
+    if (deckSaveInProgress.current) return;
+    setSavedDeckName("");
     setDeckError("");
     setDeckCards((current) => current.includes(code)
       ? current.filter((cardCode) => cardCode !== code)
@@ -113,15 +119,29 @@ export default function PlayerExperiencePage({
   }
 
   async function saveDeck() {
-    if (deckCards.length !== GAME_RULES.deckSize || !deckName.trim()) return;
-
+    const name = deckName.trim();
+    if (!remoteData || deckSaveInProgress.current || deckCards.length !== GAME_RULES.deckSize || !name) return;
+    const input = { name, cardCodes: [...deckCards].sort() };
+    const fingerprint = JSON.stringify(input);
+    if (deckRequest.current?.fingerprint !== fingerprint) {
+      deckRequest.current = { fingerprint, key: crypto.randomUUID() };
+    }
+    deckSaveInProgress.current = true;
+    setSavingDeck(true);
     setDeckError("");
-    setDeckSaved(false);
+    setSavedDeckName("");
     try {
-      await onSaveDeck?.(deckName.trim(), deckCards);
-      setDeckSaved(true);
-    } catch {
-      setDeckError("No se pudo guardar el mazo. Inténtalo de nuevo.");
+      const saved = await createPlayerDeck(input, deckRequest.current.key);
+      deckRequest.current = null;
+      setDeckCards([]);
+      setDeckName("");
+      setSavedDeckName(saved.name);
+      setDeckListVersion(version => version + 1);
+    } catch (cause) {
+      setDeckError(cause instanceof Error ? cause.message : "No se pudo guardar el mazo. Inténtalo de nuevo.");
+    } finally {
+      deckSaveInProgress.current = false;
+      setSavingDeck(false);
     }
   }
 
@@ -259,7 +279,7 @@ export default function PlayerExperiencePage({
             <span className="account-name">{playerName}</span>
             <button type="button" aria-label="Cerrar sesión" className="logout-button" onClick={() => {
               setDeckCards([]);
-              setDeckSaved(false);
+              setSavedDeckName("");
               if (onSignOut) onSignOut();
               else setStage("login");
             }}>Salir</button>
@@ -328,7 +348,7 @@ export default function PlayerExperiencePage({
             <div className="player-card-grid collection-grid">
               {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
                 selected={deckCards.includes(card.code)} canAdd={deckCards.length < GAME_RULES.deckSize || deckCards.includes(card.code)}
-                onDeckToggle={() => toggleDeckCard(card.code)} />)}
+                deckBusy={savingDeck} onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
             {remoteData && <ServerPagination data={collectionPage} />}
             {collectionVisible.length === 0 && !collectionPage.loading && !collectionPage.error && <div className="empty-state"><span className="empty-icon">▤</span><h3>Tu colección está vacía</h3><p>Explora el catálogo para encontrar cartas.</p></div>}
@@ -343,33 +363,38 @@ export default function PlayerExperiencePage({
               <div className="deck-count-card"><strong>{deckCards.length}<span>/{GAME_RULES.deckSize}</span></strong><small>cartas seleccionadas</small></div>
             </header>
             <div className="deck-editor panel">
-              <label>Nombre del mazo<input value={deckName} maxLength={GAME_RULES.maximumDeckNameLength} onChange={(event) => {
+              <label>Nombre del mazo<input value={deckName} disabled={savingDeck} maxLength={GAME_RULES.maximumDeckNameLength} onChange={(event) => {
                 setDeckName(event.target.value);
-                setDeckSaved(false);
+                setSavedDeckName("");
+                setDeckError("");
               }} /></label>
               <div className="deck-progress" aria-label={`${deckCards.length} de ${GAME_RULES.deckSize} cartas seleccionadas`}><span style={{ width: `${deckCards.length / GAME_RULES.deckSize * 100}%` }} /></div>
               <div className="deck-slots" aria-label="Espacios del mazo">
                 {Array.from({ length: GAME_RULES.deckSize }, (_, index) => {
-                  const card = ownedCards.find((owned) => owned.code === deckCards[index]);
-                  return <div key={index} className={`deck-slot ${card ? "is-filled" : ""}`}>
+                  const code = deckCards[index];
+                  const name = cardsByCode.get(code)?.name ?? code;
+                  return <div key={index} className={`deck-slot ${code ? "is-filled" : ""}`}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
-                    {card ? <><strong>{card.name}</strong><button type="button" aria-label={`Quitar ${card.name} del mazo`} onClick={() => toggleDeckCard(card.code)}>×</button></> : <small>Elige una carta</small>}
+                    {code ? <><strong>{name}</strong><button type="button" disabled={savingDeck} aria-label={`Quitar ${name} del mazo`} onClick={() => toggleDeckCard(code)}>×</button></> : <small>Elige una carta</small>}
                   </div>;
                 })}
               </div>
               <div className="deck-actions">
-                <span>{deckCards.length < GAME_RULES.deckSize ? `Te faltan ${GAME_RULES.deckSize - deckCards.length} cartas para completar tu mazo.` : "¡Mazo completo! Ya puedes guardarlo."}</span>
-                <button type="button" className="player-primary" disabled={deckCards.length !== GAME_RULES.deckSize || !deckName.trim()}
-                  onClick={() => void saveDeck()}>Guardar mazo</button>
+                <span>{!remoteData ? "Inicia sesión para guardar tus mazos."
+                  : deckCards.length < GAME_RULES.deckSize ? `Te faltan ${GAME_RULES.deckSize - deckCards.length} cartas para completar tu mazo.`
+                  : "Mazo completo."}</span>
+                <button type="button" className="player-primary" disabled={!remoteData || savingDeck || deckCards.length !== GAME_RULES.deckSize || !deckName.trim()}
+                  onClick={() => void saveDeck()}>{savingDeck ? "Guardando…" : "Guardar mazo"}</button>
               </div>
-              {deckSaved && <p className="alert success" role="status">“{deckName}” se guardó correctamente.</p>}
+              {savedDeckName && <p className="alert success" role="status">“{savedDeckName}” se guardó correctamente.</p>}
               {deckError && <p className="alert error" role="alert">{deckError}</p>}
             </div>
-            <div className="section-heading deck-pick-heading"><div><h2>Cartas disponibles</h2><p>Solo puedes agregar cartas de tu colección.</p></div><span>{ownedCards.length} cartas propias</span></div>
+            {remoteData && <SavedDecks key={deckListVersion} knownCards={cardsByCode} />}
+            <div className="section-heading deck-pick-heading"><div><h2>Cartas disponibles</h2><p>Solo puedes agregar cartas de tu colección.</p></div><span>{ownedCount} cartas propias</span></div>
             <div className="player-card-grid deck-pick-grid">
               {collectionVisible.map((card) => <PlayerCard key={card.code} card={card} quantity={card.quantity}
                 selected={deckCards.includes(card.code)} canAdd={deckCards.length < GAME_RULES.deckSize || deckCards.includes(card.code)}
-                onDeckToggle={() => toggleDeckCard(card.code)} />)}
+                deckBusy={savingDeck} onDeckToggle={() => toggleDeckCard(card.code)} />)}
             </div>
             {remoteData && <><PageStatus data={collectionPage} /><ServerPagination data={collectionPage} /></>}
             {collectionVisible.length === 0 && !collectionPage.loading && !collectionPage.error && <div className="empty-state"><span className="empty-icon">▤</span><h3>No tienes cartas disponibles</h3><p>Agrega cartas a tu colección antes de armar un mazo.</p></div>}
