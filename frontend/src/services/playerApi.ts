@@ -47,6 +47,7 @@ export interface MatchmakingDeckOption {
   name: string;
 }
 
+/** Búsqueda del servidor; incluye solo el deck seleccionado y el estado público del emparejamiento. */
 export interface MatchSearch {
   id: string;
   status: "Searching" | "Matched" | "Cancelled" | "Expired";
@@ -104,6 +105,7 @@ export interface MatchPlayerState {
   remainingDeckCards: number;
 }
 
+// El estado público no incluye las cartas de la mano ni el orden del mazo del rival.
 export interface MatchOpponentState {
   isBot: boolean;
   handCardCount: number;
@@ -126,6 +128,7 @@ export interface MatchResultState {
   cubesAwarded: number;
 }
 
+/** Snapshot de una partida para un participante; los datos ocultos del rival no forman parte del contrato. */
 export interface MatchState {
   matchId: string;
   context: "Ranked" | "Tournament";
@@ -143,45 +146,55 @@ export interface MatchState {
 }
 
 // Solo consulta los mazos existentes; su creación pertenece al módulo de mazos.
+/** Obtiene los mazos disponibles del jugador sin usar respuestas cacheadas. */
 export function getMatchmakingDecks(signal?: AbortSignal): Promise<MatchmakingDeckOption[]> {
   return request("/api/player/matchmaking/decks", { signal, cache: "no-store" });
 }
 
+/** Envía únicamente el deck elegido; el servidor valida propiedad y crea la búsqueda. */
 export function startRankedSearch(deckId: string, signal?: AbortSignal): Promise<MatchSearch> {
   return request("/api/player/matchmaking/ranked", {
     method: "POST", body: JSON.stringify({ deckId }), signal,
   });
 }
 
+/** Recupera la búsqueda del jugador, o null si todavía no existe. */
 export async function getCurrentMatchSearch(signal?: AbortSignal): Promise<MatchSearch | null> {
   return await request<MatchSearch | undefined>("/api/player/matchmaking/current", { signal, cache: "no-store" }) ?? null;
 }
 
+/** Solicita cancelar una búsqueda abierta asociada al jugador autenticado. */
 export function cancelMatchSearch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
   return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}`, { method: "DELETE", signal });
 }
 
 // El servidor confirma la oferta y crea la partida con el deck ya reservado.
+/** Acepta en el servidor una oferta de bot disponible para la búsqueda indicada. */
 export function acceptBotMatch(searchId: string, signal?: AbortSignal): Promise<MatchSearch> {
   return request(`/api/player/matchmaking/${encodeURIComponent(searchId)}/bot`, { method: "POST", signal });
 }
 
+/** Lee el estado actualizado y privado para el participante de la partida. */
 export function getMatchState(matchId: string, signal?: AbortSignal): Promise<MatchState> {
   return request(`/api/player/matchmaking/${encodeURIComponent(matchId)}/state`, { signal, cache: "no-store" });
 }
 
+// Los comandos modifican el estado en el servidor; la respuesta es el snapshot que debe renderizar la arena.
+/** Pide avanzar el turno indicado y devuelve el snapshot resultante del servidor. */
 export function advanceMatchTurn(matchId: string, turnNumber: number): Promise<MatchState> {
   return request(`/api/player/matchmaking/${encodeURIComponent(matchId)}/turn/advance`, {
     method: "POST", body: JSON.stringify({ turnNumber }),
   });
 }
 
+/** Juega una carta del jugador en una ubicación; costo y reglas se validan en la API. */
 export function playMatchCard(matchId: string, cardId: number, locationSlot: number): Promise<MatchState> {
   return request(`/api/player/matchmaking/${encodeURIComponent(matchId)}/cards/play`, {
     method: "POST", body: JSON.stringify({ cardId, locationSlot }),
   });
 }
 
+/** Descarta una carta de la mano al cementerio y devuelve el estado actualizado. */
 export function discardMatchCard(matchId: string, cardId: number): Promise<MatchState> {
   return request(`/api/player/matchmaking/${encodeURIComponent(matchId)}/cards/discard`, {
     method: "POST", body: JSON.stringify({ cardId }),

@@ -1,6 +1,6 @@
 namespace PokeArena.Domain.Matchmaking;
 
-// Representa el encuentro creado; la ejecución de turnos pertenece al futuro motor de partidas.
+/// <summary>Estado persistido de una partida, su preparación reproducible y el resultado final.</summary>
 public sealed class GameMatch
 {
     public Guid Id { get; set; }
@@ -14,17 +14,21 @@ public sealed class GameMatch
     public long[]? BotHandCardIds { get; set; }
     public long[] BotCemeteryCardIds { get; set; } = [];
     public int BotEnergy { get; set; }
+    /// <summary>Semilla privada del servidor para reproducir ubicaciones y barajados.</summary>
     public long PreparationSeed { get; set; }
+    /// <summary>Turno actual de la partida; el límite jugable es el turno seis.</summary>
     public int TurnNumber { get; set; } = MatchmakingRules.InitialTurn;
+    /// <summary>Instantes UTC de inicio y vencimiento del turno activo.</summary>
     public DateTime? TurnStartedAt { get; set; }
     public DateTime? TurnEndsAt { get; set; }
     public int WagerCubes { get; set; }
     public Guid? WinnerPlayerId { get; set; }
     public bool? IsDraw { get; set; }
+    /// <summary>Ubicaciones seleccionadas junto con snapshots de su configuración al crear la partida.</summary>
     public List<MatchLocationChoice> Locations { get; set; } = [];
 }
 
-// La reserva activa impide que un jugador participe simultáneamente en dos partidas.
+/// <summary>Estado privado de un participante: deck, mano, mazo restante, campo, energía y cementerio.</summary>
 public sealed class MatchPlayer
 {
     public Guid MatchId { get; set; }

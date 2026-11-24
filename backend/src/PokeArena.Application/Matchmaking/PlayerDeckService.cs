@@ -16,6 +16,10 @@ public interface IPlayerDeckRepository
 
 public sealed class PlayerDeckService(IPlayerDeckRepository decks)
 {
+    /// <summary>
+    /// Valida nombre, cantidad, unicidad y pertenencia de las cartas antes de guardar
+    /// la copia del mazo asociada al jugador autenticado.
+    /// </summary>
     public async Task<PlayerDeckResult> CreateAsync(Guid playerId, CreatePlayerDeckRequest request,
         CancellationToken cancellationToken)
     {

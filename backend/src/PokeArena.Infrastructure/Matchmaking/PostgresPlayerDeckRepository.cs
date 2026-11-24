@@ -6,6 +6,7 @@ namespace PokeArena.Infrastructure.Matchmaking;
 
 public sealed class PostgresPlayerDeckRepository(PokeArenaDbContext db) : IPlayerDeckRepository
 {
+    /// <summary>Resuelve códigos del catálogo a ids solo cuando el jugador posee al menos una copia.</summary>
     public async Task<IReadOnlyList<long>> ReadOwnedCardIdsAsync(Guid playerId,
         IReadOnlyList<string> cardCodes, CancellationToken token)
     {
@@ -19,6 +20,7 @@ public sealed class PostgresPlayerDeckRepository(PokeArenaDbContext db) : IPlaye
         return cardCodes.Where(byCode.ContainsKey).Select(code => byCode[code]).ToArray();
     }
 
+    /// <summary>Persiste el snapshot del deck y devuelve la fecha de creación registrada en UTC.</summary>
     public async Task<DateTime> SaveAsync(string id, Guid playerId, string name,
         IReadOnlyList<long> cardIds, CancellationToken token)
     {

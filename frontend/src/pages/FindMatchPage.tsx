@@ -6,11 +6,15 @@ import { API_BASE_URL } from "../services/api";
 
 const POLL_INTERVAL_MS = 2000;
 
+// Normaliza rutas relativas de cartas y ubicaciones usando el origen de la API.
 function matchImage(path: string | null | undefined) {
   return path ? new URL(path, `${API_BASE_URL}/`).href : null;
 }
 
-// Solo elige un deck y refleja el estado real de la búsqueda del servidor.
+/**
+ * Pantalla de matchmaking y partida activa. Las acciones se envían a la API y el estado autoritativo
+ * se vuelve a leer del servidor; esta página no calcula reglas ni modifica el tablero de forma optimista.
+ */
 export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void }) {
   const [decks, setDecks] = useState<MatchmakingDeckOption[]>([]);
   const [deckId, setDeckId] = useState("");
@@ -33,7 +37,9 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
   const activeMatchId = matchState?.status === "Active" ? matchState.matchId : null;
   const currentTurnEndsAt = matchState?.turnEndsAt;
 
+  /** Compara snapshots consecutivos para registrar eventos visibles sin mostrar información privada rival. */
   const receiveMatchState = useCallback((next: MatchState) => {
+    // Los eventos se derivan de dos snapshots del servidor, no de acciones locales optimistas.
     const previous = previousMatchState.current;
     const events: string[] = [];
     if (!previous || previous.matchId !== next.matchId) {
@@ -66,6 +72,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     setMatchState(next);
   }, []);
 
+  /** Solicita el avance cuando vence el reloj y aplica el estado actualizado que devuelve el servidor. */
   const advanceTurn = useCallback(async () => {
     if (!matchState || matchState.status !== "Active" || busy || secondsLeft > 0) return;
     setBusy(true); setError("");
@@ -79,6 +86,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     }
   }, [matchState, busy, secondsLeft, receiveMatchState]);
 
+  /** Ejecuta una acción de carta y conserva el snapshot anterior si la petición falla. */
   async function actWithCard(action: "play" | "discard", cardId: number, locationSlot?: number) {
     if (!matchState || busy || secondsLeft <= 0) return;
     setBusy(true); setError("");
@@ -94,6 +102,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     }
   }
 
+  // Carga de forma independiente los mazos y la búsqueda existente para que un fallo no oculte el otro.
   useEffect(() => {
     const controller = new AbortController();
     // Una integración pendiente no impide recuperar una búsqueda que ya existe.
@@ -115,6 +124,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     return () => { controller.abort(); request.current?.abort(); };
   }, [reload]);
 
+  // Sondeo de cola para reflejar cambios iniciados en otra pestaña o por el emparejador del servidor.
   useEffect(() => {
     // También detecta búsquedas de otra pestaña y partidas que ya finalizaron.
     if (loading) return;
@@ -141,6 +151,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [loading]);
 
+  // Al emparejarse, recupera el primer snapshot completo de la partida.
   useEffect(() => {
     if (search?.status !== "Matched" || !search.matchId) return;
     const controller = new AbortController();
@@ -153,6 +164,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     return () => controller.abort();
   }, [search?.status, search?.matchId, receiveMatchState]);
 
+  // Actualiza el tablero durante la partida; los cambios siempre provienen de snapshots de la API.
   useEffect(() => {
     if (!activeMatchId) return;
     const controller = new AbortController();
@@ -168,8 +180,10 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [activeMatchId, busy, receiveMatchState]);
 
+  // Renderiza el reloj con la fecha límite del servidor en vez de contar segundos localmente desde cero.
   useEffect(() => {
     if (!currentTurnEndsAt) return;
+    // El reloj usa la fecha límite del servidor para no acumular deriva entre renders.
     const update = () => setSecondsLeft(Math.max(0,
       Math.ceil((new Date(currentTurnEndsAt).getTime() - Date.now()) / 1000)));
     update();
@@ -177,17 +191,21 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
     return () => window.clearInterval(timer);
   }, [currentTurnEndsAt]);
 
+  // El servidor es quien valida y resuelve el avance automático una sola vez por turno.
   useEffect(() => {
     if (!matchState || matchState.status !== "Active" || secondsLeft > 0
       || automaticAdvanceTurn.current === matchState.turnNumber) return;
+    // Evita enviar más de un avance automático para el mismo turno.
     automaticAdvanceTurn.current = matchState.turnNumber;
     void advanceTurn();
   }, [advanceTurn, matchState, secondsLeft]);
 
+  /** Inicia, cancela o acepta una búsqueda de bot; recupera el estado actual si hay una carrera con otra pestaña. */
   async function act(action: "start" | "cancel" | "bot") {
     if (request.current || busy) return;
     const controller = new AbortController();
     request.current = controller;
+    // La revisión descarta polls que terminen después de una acción del jugador.
     revision.current++;
     setBusy(true); setError("");
     try {
@@ -443,6 +461,7 @@ export default function FindMatchPage({ onBuildDeck }: { onBuildDeck: () => void
   </section>;
 }
 
+/** Presenta una carta jugada con su imagen completa y estadísticas en el campo. */
 function BoardCard({ card }: { card: MatchBoardCardState }) {
   const imageUrl = matchImage(card.imagePath);
   return <article className="board-card" title={`${card.name} · Costo ${card.cost} · Poder ${card.power}`}>
@@ -454,6 +473,7 @@ function BoardCard({ card }: { card: MatchBoardCardState }) {
   </article>;
 }
 
+/** Muestra las cartas descartadas o destruidas sin recortar sus ilustraciones. */
 function CemeteryTray({ title, cards }: { title: string; cards: MatchCardState[] }) {
   return <section className="cemetery-tray" aria-label={title}>
     <div className="cemetery-heading"><span className="cemetery-icon">†</span><div><strong>{title}</strong>
@@ -473,6 +493,7 @@ function CemeteryTray({ title, cards }: { title: string; cards: MatchCardState[]
   </section>;
 }
 
+/** Resume el ganador por ubicaciones y desempates, el pozo clasificatorio y las acciones posteriores. */
 function CompletedMatchResult({ state, onPlayAgain, onBuildDeck, busy }: {
   state: MatchState;
   onPlayAgain: () => void;

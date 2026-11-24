@@ -12,6 +12,7 @@ namespace PokeArena.Api.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class PlayerDecksController(PlayerDeckService decks) : ControllerBase
 {
+    /// <summary>Crea un mazo del jugador autenticado usando solo cartas de su colección.</summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePlayerDeckRequest request, CancellationToken token)
     {

@@ -11,10 +11,14 @@ namespace PokeArena.Application.Matchmaking;
 public sealed class MatchmakingService(IMatchmakingRepository repository, IMatchmakingDeckReader decks, TimeProvider clock)
     : IMatchmakingDeckGuard
 {
+    /// <summary>Inicia una búsqueda clasificatoria después de validar la cuenta y el mazo del jugador.</summary>
     public Task<MatchSearchResult> StartRankedAsync(Guid playerId, string? deckId, CancellationToken token) =>
         StartAsync(playerId, deckId, MatchmakingRules.Ranked, null, token);
 
     // El contexto compartido permite que torneos use la misma reserva de búsqueda.
+    /// <summary>
+    /// Valida y guarda una copia del mazo seleccionado, y reserva al jugador en una cola clasificatoria o de torneo.
+    /// </summary>
     public async Task<MatchSearchResult> StartAsync(Guid playerId, string? deckId, string context, Guid? contextId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -68,6 +72,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Devuelve la búsqueda actual y renueva la presencia solo mientras siga abierta.</summary>
     public async Task<MatchSearchResult?> CurrentAsync(Guid playerId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -86,6 +91,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Cancela una búsqueda abierta del jugador; una partida ya creada no se puede cancelar aquí.</summary>
     public async Task<MatchSearchResult> CancelAsync(Guid playerId, Guid searchId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -103,6 +109,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Acepta una oferta de bot clasificatoria disponible y prepara la partida con las reglas compartidas.</summary>
     public async Task<MatchSearchResult> AcceptBotAsync(Guid playerId, Guid searchId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -146,6 +153,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         return result;
     }
 
+    /// <summary>Lista únicamente los mazos del jugador autenticado disponibles para matchmaking.</summary>
     public async Task<IReadOnlyList<MatchmakingDeckOption>> DecksAsync(Guid playerId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -156,6 +164,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Construye el estado visible para el participante sin exponer la mano ni el orden del mazo rival.</summary>
     public async Task<MatchStateResult?> MatchStateAsync(Guid playerId, Guid matchId, CancellationToken token)
     {
         ValidateIdentity(playerId);
@@ -170,6 +179,10 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>
+    /// Juega una carta de la mano tras validar el temporizador, los espacios y restricciones de la ubicación,
+    /// la disponibilidad de la carta y su costo efectivo de energía.
+    /// </summary>
     public async Task<MatchStateResult?> PlayCardAsync(Guid playerId, Guid matchId, long cardId,
         int locationSlot, CancellationToken token)
     {
@@ -213,6 +226,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Mueve una carta de la mano del jugador a su cementerio durante un turno activo.</summary>
     public async Task<MatchStateResult?> DiscardCardAsync(Guid playerId, Guid matchId, long cardId,
         CancellationToken token)
     {
@@ -235,6 +249,9 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>
+    /// Avanza idempotentemente un turno vencido, roba cartas y recalcula la energía, o resuelve la partida al terminar el turno seis.
+    /// </summary>
     public async Task<MatchStateResult?> AdvanceMatchAsync(Guid playerId, Guid matchId, int? expectedTurnNumber,
         CancellationToken token)
     {
@@ -312,6 +329,9 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    // Ranked y Tournament comparten preparación. El match y el emparejamiento
+    // se confirman juntos; un fallo no deja una partida parcial persistida.
+    /// <summary>Empareja búsquedas elegibles y prepara partidas clasificatorias y de torneo en una transacción.</summary>
     public Task<int> ProcessAsync(CancellationToken token) =>
         repository.InTransactionAsync(async (session, ct) =>
         {
@@ -373,6 +393,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }, token);
     }
 
+    /// <summary>Revalida la cuenta y cierra o expira búsquedas que ya no pueden continuar.</summary>
     private async Task<bool> CanContinueAsync(MatchSearch search, Domain.Entities.Player? player,
         IMatchmakingSession session, CancellationToken token)
     {
@@ -387,6 +408,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         return true;
     }
 
+    /// <summary>Expira una búsqueda desatendida según la última consulta del cliente, no la actividad del worker.</summary>
     private bool ExpireIfInactive(MatchSearch search)
     {
         if (!MatchmakingRules.IsExpired(search, clock.GetUtcNow().UtcDateTime)) return false;
@@ -395,6 +417,12 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         return true;
     }
 
+    // Persiste una instantánea de ubicaciones y mazos barajados, reparte tres cartas
+    // y luego el robo del turno 1, inicializa energía, cementerios y reloj.
+    /// <summary>
+    /// Elige y guarda las ubicaciones, baraja cada mazo con semillas del servidor,
+    /// reparte la mano inicial y el robo del turno uno e inicializa energía, apuesta, cementerios y temporizador.
+    /// </summary>
     private async Task PrepareMatchAsync(GameMatch match, IReadOnlyList<MatchPlayer> participants,
         IMatchmakingSession session, CancellationToken token)
     {
@@ -471,16 +499,19 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }
     }
 
+    /// <summary>Obtiene un componente estable por jugador para que cada participante tenga un barajado reproducible distinto.</summary>
     private static long PlayerSeed(Guid playerId)
     {
         var bytes = playerId.ToByteArray();
         return BinaryPrimitives.ReadInt64LittleEndian(bytes);
     }
 
+    /// <summary>Crea un participante desde la copia inmutable del mazo capturada al entrar a la cola.</summary>
     private static MatchPlayer Participant(MatchSearch search, Guid matchId) => new() {
         MatchId = matchId, PlayerId = search.PlayerId, DeckId = search.DeckId, CardIds = search.CardIds.ToArray(), Elo = search.Elo
     };
 
+    /// <summary>Compara el poder en cada ubicación guardada y aplica los desempates por energía y cementerio.</summary>
     private static async Task<(string Outcome, int PlayerLocationsWon, int OpponentLocationsWon,
         int PlayerTotalPower, int OpponentTotalPower)> CalculateResultAsync(GameMatch match,
         MatchPlayer player, MatchPlayer? opponent, IReadOnlyList<MatchLocationChoice> choices,
@@ -512,6 +543,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         return (outcome, playerLocationsWon, opponentLocationsWon, playerPower, opponentPower);
     }
 
+    /// <summary>Liquida la apuesta clasificatoria: el ganador recibe el pozo o, en empate, se devuelve a ambos.</summary>
     private static async Task SettleWagerAsync(GameMatch match, IReadOnlyList<MatchPlayer> players,
         Guid? winnerPlayerId, bool isDraw, IMatchmakingSession session, CancellationToken token)
     {
@@ -533,6 +565,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }
     }
 
+    /// <summary>Construye el snapshot para un participante, con datos públicos del rival y sin sus cartas ocultas.</summary>
     private async Task<MatchStateResult> BuildMatchStateAsync(GameMatch match, IReadOnlyList<MatchPlayer> players,
         IReadOnlyList<MatchLocationChoice> choices, Guid playerId, IMatchmakingSession session, CancellationToken token)
     {
@@ -545,6 +578,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }).ToArray();
         var ownPlayer = players.Single(player => player.PlayerId == playerId);
         var opponentPlayer = players.SingleOrDefault(player => player.PlayerId != playerId);
+        // Solo se serializa la mano propia; del oponente se expone el conteo, nunca sus cartas ni el orden del mazo.
         var opponentHandIds = opponentPlayer?.HandCardIds ?? match.BotHandCardIds ?? [];
         var opponentCemeteryIds = opponentPlayer?.CemeteryCardIds ?? match.BotCemeteryCardIds;
         var opponentPlayedIds = opponentPlayer?.PlayedCardIds ?? [];
@@ -604,6 +638,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             match.WagerCubes, locations, playerState, opponentState, result);
     }
 
+    /// <summary>Rechaza acciones de cartas si la partida terminó o venció el turno actual.</summary>
     private void EnsureTurnIsPlayable(GameMatch match)
     {
         if (match.Status != MatchmakingRules.ActiveMatch)
@@ -612,6 +647,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             throw new MatchmakingFailure("turn_finished", "El tiempo del turno terminó; espere el avance al siguiente turno.", 409);
     }
 
+    /// <summary>Calcula la energía inicial sumando energía base y efectos de ubicaciones sobre un campo vacío.</summary>
     private static int InitialTurnEnergy(int turn, IEnumerable<Location> locations) =>
         MatchmakingRules.TurnEnergy(turn, locations.Select(location => new MatchLocationEnergy
         {
@@ -620,6 +656,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             ExtraEnergy = location.ExtraEnergy
         }), new Dictionary<long, int>());
 
+    /// <summary>Calcula energía desde la configuración guardada y las cartas propias presentes al inicio del turno.</summary>
     private static int TurnEnergy(int turn, IReadOnlyList<MatchLocationChoice> choices, MatchPlayer player)
     {
         var locations = choices.Select(ReadLocation).ToArray();
@@ -634,10 +671,12 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         }), countByLocation);
     }
 
+    /// <summary>Restaura la configuración inmutable de ubicación guardada con la partida.</summary>
     private static Location ReadLocation(MatchLocationChoice choice) =>
         JsonSerializer.Deserialize<Location>(choice.Snapshot, new JsonSerializerOptions(JsonSerializerDefaults.Web))
         ?? throw new MatchmakingFailure("invalid_location_snapshot", "La configuración guardada de una ubicación no es válida.", 503);
 
+    /// <summary>Convierte el id persistido de una carta a su representación pública o informa datos inconsistentes.</summary>
     private static MatchCardState ToMatchCard(IReadOnlyDictionary<long, Card> cards, long cardId)
     {
         if (!cards.TryGetValue(cardId, out var card))
@@ -646,9 +685,11 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             card.ImageOriginalPath, card.ImageSmallPath);
     }
 
+    /// <summary>Comprueba si la restricción de turno configurada para una ubicación aplica al turno actual.</summary>
     private static bool IsTurnRestricted(Location location, int turn)
         => ReadRestrictedTurns(location).Contains(turn);
 
+    /// <summary>Lee y filtra los turnos válidos de los parámetros TurnRestriction de una ubicación.</summary>
     private static IReadOnlyList<int> ReadRestrictedTurns(Location location)
     {
         if (!string.Equals(location.EffectType, "TurnRestriction", StringComparison.OrdinalIgnoreCase))
@@ -661,6 +702,7 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
             : [];
     }
 
+    /// <summary>Aplica el modificador de costo configurado para el tipo de carta y evita costos negativos.</summary>
     private static int EffectiveCost(Card card, Location location)
     {
         if (!string.Equals(location.EffectType, "CostModifier", StringComparison.OrdinalIgnoreCase))
@@ -677,10 +719,12 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
         return Math.Max(0, card.Cost + modifier);
     }
 
+    /// <summary>Convierte la búsqueda persistida y las opciones de matchmaking calculadas por el servidor al contrato API.</summary>
     private MatchSearchResult Result(MatchSearch search) => new(search.Id, search.Status, search.Context, search.ContextId,
         search.DeckId, search.Elo, MatchmakingRules.EloRange(search.CreatedAt, clock.GetUtcNow().UtcDateTime),
         search.CreatedAt, search.MatchId, search.EndReason, MatchmakingRules.CanOfferBot(search, clock.GetUtcNow().UtcDateTime));
 
+    /// <summary>Rechaza solicitudes sin un identificador de jugador autenticado y no vacío.</summary>
     private static void ValidateIdentity(Guid playerId)
     {
         if (playerId == Guid.Empty) throw new AuthenticationFailure("authentication_required", "Debe iniciar sesión para continuar.", 401);
