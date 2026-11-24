@@ -3,7 +3,7 @@ import { getLoginConfiguration, loginWithGoogle, type LoginConfiguration, type L
 import { loadGoogleIdentity, type GoogleIdentity } from "../services/googleIdentity";
 import PlayerExperiencePage from "./PlayerExperiencePage";
 import "../App.css";
-import { setPlayerAccessToken, signOutPlayer } from "../services/playerApi";
+import { createPlayerDeck, setPlayerAccessToken, signOutPlayer } from "../services/playerApi";
 
 /** Autentica con Google contra la API y continúa a la experiencia del jugador. */
 export default function LoginPage() {
@@ -99,6 +99,9 @@ export default function LoginPage() {
         remoteData
         cubeBalance={session.player.cubes}
         playerName={session.player.displayName ?? "Jugador"}
+        onSaveDeck={async (name, cardCodes) => {
+          await createPlayerDeck({ name, cardCodes });
+        }}
         onOpenAdmin={() => window.location.assign("/admin")}
         onSignOut={() => {
           signOutPlayer();

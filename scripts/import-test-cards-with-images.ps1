@@ -59,7 +59,7 @@ try {
     if ($rows.Count -eq 0) { Write-Output 'Las cartas de prueba ya tienen imágenes; no hay cambios.'; return }
 
     # Cartas y versiones se confirman juntas; un fallo SQL deja únicamente archivos sin referencias.
-    $seed = $seed -replace '(?m)^BEGIN;\s*', '' -replace '(?m)^END;\s*', ''
+    $seed = $seed -replace '(?m)^BEGIN;\s*', '' -replace '(?m)^COMMIT;\s*', ''
     $sql = @"
 BEGIN;
 $seed

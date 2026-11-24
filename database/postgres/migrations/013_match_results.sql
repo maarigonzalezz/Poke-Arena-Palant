@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS winner_player_id UUID REFERENCES players(id),
+    ADD COLUMN IF NOT EXISTS is_draw BOOLEAN;
+
+COMMIT;

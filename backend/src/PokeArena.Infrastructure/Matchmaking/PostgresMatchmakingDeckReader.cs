@@ -8,7 +8,8 @@ namespace PokeArena.Infrastructure.Matchmaking;
 // El módulo de mazos publica esta vista; aquí no se crean ni se simulan decks.
 public sealed class PostgresMatchmakingDeckReader(PokeArenaDbContext db) : IMatchmakingDeckReader
 {
-    public async Task<MatchmakingDeck?> FindAsync(Guid playerId, string deckId, CancellationToken token)
+    /// <summary>Lee todas las cartas del deck y su propietario desde la vista publicada por el módulo de mazos.</summary>
+    public async Task<MatchmakingDeck?> FindAsync(string deckId, CancellationToken token)
     {
         try
         {
@@ -23,6 +24,7 @@ public sealed class PostgresMatchmakingDeckReader(PokeArenaDbContext db) : IMatc
         }
     }
 
+    /// <summary>Lista por nombre los decks publicados que pertenecen al jugador solicitado.</summary>
     public async Task<IReadOnlyList<MatchmakingDeckOption>> ListAsync(Guid playerId, CancellationToken token)
     {
         try
@@ -38,6 +40,7 @@ public sealed class PostgresMatchmakingDeckReader(PokeArenaDbContext db) : IMatc
         }
     }
 
+    /// <summary>Devuelve el error explícito que permite distinguir una integración ausente de un mazo inexistente.</summary>
     private static MatchmakingFailure NotIntegrated() => new("decks_not_integrated",
         "El módulo de mazos todavía no está conectado. Debe publicar la vista de consulta para poder seleccionar un deck.", 503);
 }

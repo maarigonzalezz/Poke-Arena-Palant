@@ -17,9 +17,11 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
     internal DbSet<MatchSearch> MatchSearches => Set<MatchSearch>();
     internal DbSet<GameMatch> Matches => Set<GameMatch>();
     internal DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
+    internal DbSet<MatchLocationChoice> MatchLocationChoices => Set<MatchLocationChoice>();
     internal DbSet<MatchmakingDeckRow> MatchmakingDeckRows => Set<MatchmakingDeckRow>();
     internal DbSet<PlayerDeckRecord> PlayerDecks => Set<PlayerDeckRecord>();
     internal DbSet<PlayerDeckCardRecord> PlayerDeckCards => Set<PlayerDeckCardRecord>();
+    internal DbSet<PlayerDeckRecord> PlayerDecks => Set<PlayerDeckRecord>();
     // Conjunto de tablas auxiliares
     // + Habilidades
     internal DbSet<AbilityRecord> Abilities => Set<AbilityRecord>();
@@ -59,19 +61,50 @@ public sealed class PokeArenaDbContext(DbContextOptions<PokeArenaDbContext> opti
         deckCard.HasOne<PlayerDeckRecord>().WithMany().HasForeignKey(x => x.DeckId).OnDelete(DeleteBehavior.Cascade);
         deckCard.HasOne<Card>().WithMany().HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Restrict);
 
+        var playerDeck = model.Entity<PlayerDeckRecord>();
+        playerDeck.ToTable("player_decks");
+        playerDeck.HasKey(x => x.Id);
+        playerDeck.Property(x => x.Id).HasMaxLength(MatchmakingRules.MaximumDeckIdLength);
+        playerDeck.Property(x => x.Name).HasMaxLength(80);
+        playerDeck.Property(x => x.CardIds).HasColumnName("card_ids");
+        playerDeck.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
         var match = model.Entity<GameMatch>();
         match.ToTable("matches");
         match.HasKey(x => x.Id);
         match.Property(x => x.Id).ValueGeneratedNever();
         match.Property(x => x.Context).HasMaxLength(20);
         match.Property(x => x.Status).HasMaxLength(20);
+        match.Property(x => x.PreparationSeed).HasColumnName("preparation_seed");
+        match.Property(x => x.TurnNumber).HasColumnName("turn_number");
+        match.Property(x => x.TurnStartedAt).HasColumnName("turn_started_at");
+        match.Property(x => x.TurnEndsAt).HasColumnName("turn_ends_at");
+        match.Property(x => x.WagerCubes).HasColumnName("wager_cubes");
+        match.Property(x => x.WinnerPlayerId).HasColumnName("winner_player_id");
+        match.Property(x => x.IsDraw).HasColumnName("is_draw");
+        match.Property(x => x.BotHandCardIds).HasColumnName("bot_hand_card_ids");
+        match.Property(x => x.BotCemeteryCardIds).HasColumnName("bot_cemetery_card_ids");
+        match.Property(x => x.BotEnergy).HasColumnName("bot_energy");
         var participant = model.Entity<MatchPlayer>();
         participant.ToTable("match_players");
         participant.HasKey(x => new { x.MatchId, x.PlayerId });
         participant.Property(x => x.DeckId).HasMaxLength(MatchmakingRules.MaximumDeckIdLength);
+        participant.Property(x => x.CardIds).HasColumnName("card_ids");
+        participant.Property(x => x.RemainingCardIds).HasColumnName("remaining_card_ids");
+        participant.Property(x => x.HandCardIds).HasColumnName("hand_card_ids");
+        participant.Property(x => x.CemeteryCardIds).HasColumnName("cemetery_card_ids");
+        participant.Property(x => x.PlayedCardIds).HasColumnName("played_card_ids");
+        participant.Property(x => x.PlayedLocationSlots).HasColumnName("played_location_slots");
+        participant.Property(x => x.Energy).HasColumnName("energy");
         participant.HasOne<GameMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict);
         participant.HasOne<Player>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
         participant.HasIndex(x => x.PlayerId).IsUnique().HasFilter("active").HasDatabaseName("uq_match_player_active");
+        var locationChoice = model.Entity<MatchLocationChoice>();
+        locationChoice.ToTable("match_location_choices");
+        locationChoice.HasKey(x => new { x.MatchId, x.Slot });
+        locationChoice.Property(x => x.MatchId).HasColumnName("match_id");
+        locationChoice.Property(x => x.Snapshot).HasColumnType("jsonb");
+        locationChoice.HasOne<GameMatch>().WithMany(x => x.Locations)
+            .HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Cascade);
         var search = model.Entity<MatchSearch>();
         search.ToTable("matchmaking_searches");
         search.HasKey(x => x.Id);
