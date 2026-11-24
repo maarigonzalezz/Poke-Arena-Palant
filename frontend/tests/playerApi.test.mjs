@@ -64,3 +64,26 @@ test('una solicitud cancelada conserva AbortError', async () => {
   globalThis.fetch = async () => { throw new DOMException('Cancelled', 'AbortError'); };
   await assert.rejects(api.getPlayerCatalog({}, controller.signal), { name: 'AbortError' });
 });
+
+test('guarda y consulta mazos con el token del jugador y conserva la clave al reintentar', async () => {
+  const input = { name: 'Fuego', cardCodes: ['F1', 'F2'] };
+  const deck = { id: 'deck-1', ...input, createdAt: '2026-11-23T00:00:00Z' };
+  let attempts = 0;
+  api.setPlayerAccessToken('platform-token');
+  globalThis.fetch = async (url, options) => {
+    assert.equal(new URL(url).pathname, '/api/player/decks');
+    assert.equal(options.headers.get('Authorization'), 'Bearer platform-token');
+    if (options.method === 'POST') {
+      assert.equal(options.headers.get('Idempotency-Key'), 'deck-retry-key');
+      assert.deepEqual(JSON.parse(options.body), input);
+      if (++attempts === 1) throw new Error('Network interrupted');
+      return Response.json(deck, { status: 201 });
+    }
+    assert.equal(options.cache, 'no-store');
+    return Response.json([deck]);
+  };
+
+  await assert.rejects(api.createPlayerDeck(input, 'deck-retry-key'), { status: 0 });
+  assert.deepEqual(await api.createPlayerDeck(input, 'deck-retry-key'), deck);
+  assert.deepEqual(await api.getPlayerDecks(), [deck]);
+});

@@ -3,7 +3,7 @@ using PokeArena.Domain.Matchmaking;
 
 namespace PokeArena.Application.Matchmaking;
 
-public sealed record MatchmakingDeck(string Id, Guid OwnerId, IReadOnlyList<long> CardIds);
+public sealed record MatchmakingDeck(string Id, IReadOnlyList<long> CardIds);
 public sealed record MatchmakingDeckOption(string Id, string Name);
 public sealed record StartMatchSearchRequest(string? DeckId);
 public sealed record MatchSearchResult(Guid Id, string Status, string Context, Guid? ContextId,
@@ -12,8 +12,8 @@ public sealed record MatchSearchResult(Guid Id, string Status, string Context, G
 // Mazos aporta lectura real de propietario y cartas; no se requiere su API de creación.
 public interface IMatchmakingDeckReader
 {
-    // Devuelve todas las cartas, incluso duplicadas, y conserva un deck vacío como lista vacía.
-    Task<MatchmakingDeck?> FindAsync(string deckId, CancellationToken cancellationToken);
+    // Solo devuelve los datos del mazo si pertenece al jugador, incluso si la selección está vacía.
+    Task<MatchmakingDeck?> FindAsync(Guid playerId, string deckId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MatchmakingDeckOption>> ListAsync(Guid playerId, CancellationToken cancellationToken);
 }
 

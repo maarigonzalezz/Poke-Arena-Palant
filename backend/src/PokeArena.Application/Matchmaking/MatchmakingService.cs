@@ -44,10 +44,8 @@ public sealed class MatchmakingService(IMatchmakingRepository repository, IMatch
                 throw new MatchmakingFailure("insufficient_cubes",
                     $"Su saldo es de {player.Cubes} cubos. Necesita al menos {MatchmakingRules.RequiredCubes}; debe comprar cubos para continuar.", 400,
                     new { balance = player.Cubes, required = MatchmakingRules.RequiredCubes });
-            var deck = await decks.FindAsync(deckId, ct)
-                ?? throw new MatchmakingFailure("deck_not_found", "El deck indicado no existe.", 400);
-            if (deck.OwnerId != playerId)
-                throw new MatchmakingFailure("deck_not_owned", "El deck indicado pertenece a otro jugador.", 403);
+            var deck = await decks.FindAsync(playerId, deckId, ct)
+                ?? throw new MatchmakingFailure("deck_not_found", "El deck indicado no existe.", 404);
             if (deck.CardIds.Count != GameRules.DeckSize || deck.CardIds.Distinct().Count() != GameRules.DeckSize)
                 throw new MatchmakingFailure("invalid_deck", $"El deck debe tener exactamente {GameRules.DeckSize} cartas distintas.", 400);
             var owned = (await session.ReadOwnedCardIdsAsync(playerId, ct)).ToHashSet();
